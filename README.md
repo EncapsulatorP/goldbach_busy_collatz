@@ -70,11 +70,17 @@ Run the regression checks with:
 python -m unittest discover -s tests -v
 ```
 
-## HTML preview
+## HTML splash previews
 
-Click the screenshot to open the interactive HTML artifact:
+Click any screenshot to open the interactive HTML artifact:
+
+[![Goldbach Volume 5k HTML preview](outputs/plots/goldbach_volume_5k_html_screenshot.png)](outputs/html/goldbach_volume_5k.html)
 
 [![Goldbach Volume 5k mod30 HTML preview](outputs/plots/goldbach_volume_5k_mod30_html_screenshot.png)](outputs/html/goldbach_volume_5k_mod30.html)
+
+[![Goldbach Volume 5k v2 HTML preview](outputs/plots/goldbach_volume_5k_v2_html_screenshot.png)](outputs/html/goldbach_volume_5k_v2.html)
+
+[![Goldbach Volume 10k mod210 HTML preview](outputs/plots/goldbach_volume_10k_mod210_html_screenshot.png)](outputs/html/goldbach_volume_10k_mod210.html)
 
 ## Data model
 
