@@ -8,7 +8,7 @@ This repository organizes exploratory, computation-first experiments around:
 - Compressed residue-family views of Goldbach pair fibers.
 - Collatz-relation context (classical `3m+1` and experimental `5m+1` framing).
 
-## Important Mathematical Status (Non-Hallucinated)
+## Important Mathematical Status 
 
 - The **Goldbach conjecture** is still open. This repository does **not** provide a proof.
 - The scripts compute exact Goldbach pair counts for tested ranges and compare them to heuristic expectations.
