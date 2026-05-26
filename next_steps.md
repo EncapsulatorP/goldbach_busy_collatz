@@ -94,4 +94,5 @@ This lowers onboarding friction and prevents misinterpretation.
    - empirical patterns
    - heuristic explanations
    - theorem-level statements
-3. Maintain non-hallucinated language around open conjectures.
+
+
