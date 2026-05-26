@@ -28,9 +28,9 @@ On the 100k run, the calibrated scale is approximately `alpha = 1.225600`.
 
 Top rows in [outputs/csv/goldbach_h_cluster_summary.csv](outputs/csv/goldbach_h_cluster_summary.csv) now fall in narrow near-zero `z_bucket` bands rather than in a drifting `eps_h` tail. Representative rows are:
 
-- `z_bucket=-0.5, rho30=8, count=1223, min_N=8, max_N=99878`
-- `z_bucket=-0.5, rho30=2, count=1205, min_N=152, max_N=99932`
-- `z_bucket=+0.5, rho30=28, count=1169, min_N=58, max_N=99838`
+- `z_bucket=+0.0, rho30=12, count=1283, min_N=72, max_N=99912`
+- `z_bucket=+0.0, rho30=14, count=1279, min_N=14, max_N=99884`
+- `z_bucket=+0.0, rho30=26, count=1267, min_N=56, max_N=99956`
 
 Interpretation: the residual mass lives close to the calibrated mean. The cluster table is useful as a descriptive occupancy map, but it does not isolate a privileged chamber.
 

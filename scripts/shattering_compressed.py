@@ -22,7 +22,6 @@ import matplotlib.pyplot as plt
 
 from shattering_mirrors import (
     build_dataset,
-    full_cluster_counts,
     make_cluster_palette,
     ordered_residual_buckets,
     resolve_cluster_filter,
@@ -117,13 +116,7 @@ def pair_chambers_i(N: int, is_prime) -> list[dict]:
 
 def super_compressed_N(N: int, r: int, h_floor: int, is_prime) -> dict:
     """
-    Full number-level + pair-fiber compression.
-
-    z_N:
-        rounded z_h + i*(N mod 30)
-
-    pair fiber:
-        { q30 + i*p30 }_[N mod 30]
+    Legacy helper for raw number-level + pair-fiber compression.
     """
     eps_h = r - h_floor
     rho30 = N % 30
@@ -428,7 +421,7 @@ def parse_args() -> argparse.Namespace:
         "--plot-prefix",
         type=str,
         default="outputs/plots/shattering_compressed",
-        help="Prefix for PNG and CSV outputs.",
+        help="Prefix for PNG outputs.",
     )
     parser.add_argument(
         "--numbers-out",
