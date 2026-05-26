@@ -70,6 +70,12 @@ Run the regression checks with:
 python -m unittest discover -s tests -v
 ```
 
+## HTML preview
+
+Click the screenshot to open the interactive HTML artifact:
+
+[![Goldbach Volume 5k mod30 HTML preview](outputs/plots/goldbach_volume_5k_mod30_html_screenshot.png)](outputs/html/goldbach_volume_5k_mod30.html)
+
 ## Data model
 
 The main dataset contains:
