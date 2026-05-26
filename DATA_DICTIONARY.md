@@ -16,17 +16,17 @@ This repo is currently Goldbach-centric. The main CSVs come from `scripts/shatte
 - `h_cal`: calibrated heuristic `h_scale * h`.
 - `h_floor`: `floor(h)`. This is retained because older diagnostics used it.
 - `eps_h`: raw integer residual `r - floor(h)`.
-- `eps_bucket`: clipped bucket derived from `eps_h`. This is now a diagnostic only, not the main clustering axis.
+- `eps_bucket`: legacy column name for a clipped `eps_h` label. This is now a diagnostic only, not the main clustering axis.
 - `z_h_raw`: raw normalized residual `(r - h) / sqrt(h)` before global calibration.
 - `z_h`: calibrated normalized residual `(r - h_cal) / sqrt(h_cal)`.
-- `z_bucket`: fixed-width bucket derived from `z_h`. This is the main cluster axis now.
+- `z_bucket`: current column name for the discretized `z_h` label used in summaries.
 
 ## Structural columns
 
 - `rho30`: `N mod 30`.
 - `delta10`: `N - 10*r`. This is a decimal artifact diagnostic, not a theorem-bearing quantity.
 - `boost_G`: local odd-prime singular-series multiplier used inside `h`.
-- `native_cluster`: combined label `z=<bucket>;rho30=<residue>`.
+- `native_cluster`: combined label `z=<z_bucket>;rho30=<residue>`.
 
 ## Mirror / string diagnostics
 

@@ -160,7 +160,7 @@ def h_goldbach(N: int, boost: float) -> float:
 
 def eps_label(eps: int, clip: int = 5) -> str:
     """
-    Bucket residuals so large outliers do not explode the cluster tree.
+    Clip eps_h values into a small set of text labels for summaries.
     """
     if eps < -clip:
         return f"<-{clip}"
@@ -171,20 +171,20 @@ def eps_label(eps: int, clip: int = 5) -> str:
 
 def z_label(z: float, step: float = Z_BUCKET_STEP, clip: float = Z_BUCKET_CLIP) -> str:
     """
-    Bucket normalized residuals on a fixed scale.
+    Convert normalized residuals into fixed-step text labels.
 
-    The clipped edge buckets exist only to keep the chamber table finite; the
-    meaningful comparison is whether occupancy concentrates away from zero.
+    The clipped edge labels only keep the summary table finite; the meaningful
+    comparison is whether occupancy concentrates away from zero.
     """
     if z <= -clip:
         return f"<={-clip:.1f}"
     if z >= clip:
         return f">={clip:.1f}"
 
-    bucket = round(z / step) * step
-    if abs(bucket) < step / 2:
-        bucket = 0.0
-    return f"{bucket:+.1f}"
+    label_value = round(z / step) * step
+    if abs(label_value) < step / 2:
+        label_value = 0.0
+    return f"{label_value:+.1f}"
 
 
 @dataclass
@@ -233,7 +233,7 @@ def build_row(N: int, r: int, spf: np.ndarray) -> CompressionRow:
     root_native = f"{eps_h}|{rho30}|{eps_h}"
     native_core = f"{r}|({rho30},{eps_h})|{r}"
 
-    bucket = eps_label(eps_h)
+    eps_text = eps_label(eps_h)
     return CompressionRow(
         N=N,
         n=n,
@@ -253,7 +253,7 @@ def build_row(N: int, r: int, spf: np.ndarray) -> CompressionRow:
         root_decimal=root_decimal,
         root_native=root_native,
         native_core=native_core,
-        eps_bucket=bucket,
+        eps_bucket=eps_text,
         z_bucket="",
         native_cluster="",
     )
@@ -264,7 +264,7 @@ def calibrated_h_scale(df: pd.DataFrame) -> float:
     Fit one global multiplicative scale for h(N) so mean normalized residual is 0.
 
     This does not upgrade the heuristic into a theorem; it only removes the
-    single global bias before bucketing residuals.
+    single global bias before assigning residual labels.
     """
     positive = df["h"] > 0
     sqrt_h = np.sqrt(df.loc[positive, "h"].to_numpy())
@@ -277,7 +277,7 @@ def calibrated_h_scale(df: pd.DataFrame) -> float:
 
 
 def apply_residual_calibration(df: pd.DataFrame) -> pd.DataFrame:
-    """Attach calibrated h and normalized residual buckets to the dataset."""
+    """Attach calibrated h and discretized residual labels to the dataset."""
     out = df.copy()
     scale = calibrated_h_scale(out)
     out["h_scale"] = scale
@@ -357,7 +357,7 @@ def build_dataset(max_n: int, include_strings: bool = True) -> pd.DataFrame:
 
 def summarize_clusters(df: pd.DataFrame, top: int = 30) -> pd.DataFrame:
     """
-    Summary by normalized residual bucket and native mod-30 chamber.
+    Summary by discretized z_h label and rho30.
     """
     summary = (
         df.groupby(["z_bucket", "rho30"])
@@ -399,8 +399,8 @@ def full_cluster_counts(df: pd.DataFrame) -> pd.DataFrame:
     )
 
 
-def residual_bucket_sort_key(label: str) -> tuple[int, float]:
-    """Stable ordering for clipped normalized-residual buckets."""
+def residual_label_sort_key(label: str) -> tuple[int, float]:
+    """Stable ordering for clipped normalized-residual labels."""
     if label.startswith("<="):
         return (-10_000, float(label[2:]))
     if label.startswith(">="):
@@ -408,8 +408,8 @@ def residual_bucket_sort_key(label: str) -> tuple[int, float]:
     return (0, float(label))
 
 
-def ordered_residual_buckets(df: pd.DataFrame) -> list[str]:
-    labels = sorted(df["z_bucket"].astype(str).unique(), key=residual_bucket_sort_key)
+def ordered_residual_labels(df: pd.DataFrame) -> list[str]:
+    labels = sorted(df["z_bucket"].astype(str).unique(), key=residual_label_sort_key)
     return labels
 
 
@@ -418,7 +418,7 @@ def resolve_cluster_filter(
     requested: str,
     top_clusters: int,
 ) -> tuple[list[str], pd.DataFrame]:
-    """Resolve either an explicit cluster filter or the top native clusters."""
+    """Resolve either an explicit filter or the top native labels."""
     counts = full_cluster_counts(df)
     known = set(counts["native_cluster"])
 
@@ -459,7 +459,7 @@ def build_cluster_share_table(
     labels: list[str],
     bins: int,
 ) -> pd.DataFrame:
-    """Share of each selected cluster in linear N-bins."""
+    """Share of each selected label in linear N-bins."""
     work = df[["N", "native_cluster"]].copy()
     work["N_bin"] = pd.cut(work["N"], bins=bins, include_lowest=True)
     grouped = (
@@ -481,7 +481,7 @@ def build_cluster_z_table(
     labels: list[str],
     bins: int,
 ) -> pd.DataFrame:
-    """Mean z_h by selected cluster in linear N-bins."""
+    """Mean z_h by selected label in linear N-bins."""
     work = df[df["native_cluster"].isin(labels)][["N", "native_cluster", "z_h"]].copy()
     work["N_bin"] = pd.cut(work["N"], bins=bins, include_lowest=True)
     grouped = (
@@ -500,10 +500,10 @@ def plot_cluster_dashboard(
     out_path: str,
     bins: int = 50,
 ) -> None:
-    """Create a multi-panel explanatory dashboard for the native cluster filter."""
+    """Create a multi-panel dashboard for the selected labels."""
     plot_df = filtered_cluster_frame(df, selected_labels)
     palette = make_cluster_palette(selected_labels)
-    z_labels = ordered_residual_buckets(df)
+    z_labels = ordered_residual_labels(df)
     rho_labels = sorted(df["rho30"].astype(int).unique())
 
     heat = (
@@ -520,9 +520,9 @@ def plot_cluster_dashboard(
     ax_heat, ax_bar, ax_z, ax_delta, ax_share, ax_centroid = axes.ravel()
 
     im = ax_heat.imshow(heat.values, aspect="auto", cmap="magma")
-    ax_heat.set_title("Normalized residual chambers: count heatmap")
+    ax_heat.set_title("Normalized residual labels by rho30")
     ax_heat.set_xlabel("rho30")
-    ax_heat.set_ylabel("z_bucket")
+    ax_heat.set_ylabel("z label")
     ax_heat.set_xticks(range(len(rho_labels)))
     ax_heat.set_xticklabels(rho_labels)
     ax_heat.set_yticks(range(len(z_labels)))
@@ -536,7 +536,7 @@ def plot_cluster_dashboard(
         ax_heat.text(j, ii, str(i + 1), ha="center", va="center", color="white", fontsize=9, fontweight="bold")
     fig.colorbar(im, ax=ax_heat, fraction=0.046, pad=0.04, label="count")
 
-    ax_bar.set_title("Selected cluster sizes")
+    ax_bar.set_title("Selected label counts")
     bar_positions = np.arange(len(filtered_counts))
     bar_colors = [palette[label] for label in filtered_counts["native_cluster"]]
     ax_bar.bar(bar_positions, filtered_counts["count"], color=bar_colors, alpha=0.9)
@@ -565,14 +565,14 @@ def plot_cluster_dashboard(
     ax_delta.set_xlabel("N")
     ax_delta.set_ylabel("delta10 = N - 10 r")
 
-    ax_share.set_title("Selected cluster share across N-bins")
+    ax_share.set_title("Selected label share across N-bins")
     for label in selected_labels:
         subset = share_table[share_table["native_cluster"] == label]
         ax_share.plot(subset["bin_mid"], subset["share"], color=palette[label], lw=2, label=label)
     ax_share.set_xlabel("N-bin midpoint")
     ax_share.set_ylabel("share of all rows in bin")
 
-    ax_centroid.set_title("Selected cluster centroids")
+    ax_centroid.set_title("Selected label centroids")
     ax_centroid.scatter(
         filtered_counts["mean_boost"],
         filtered_counts["mean_z"],
@@ -601,7 +601,7 @@ def plot_cluster_dashboard(
         for i, label in enumerate(selected_labels)
     ]
     fig.legend(handles=handles, loc="lower center", ncol=2, frameon=False, bbox_to_anchor=(0.5, 0.01))
-    fig.suptitle("Shattering Mirrors Cluster Dashboard", fontsize=17, y=0.995)
+    fig.suptitle("Shattering Mirrors Residual Summary", fontsize=17, y=0.995)
     fig.tight_layout(rect=(0.0, 0.04, 1.0, 0.98))
     fig.savefig(out_path, dpi=180)
     plt.close(fig)
@@ -614,7 +614,7 @@ def plot_cluster_gallery(
     out_path: str,
     bins: int = 50,
 ) -> None:
-    """Create one panel per selected cluster with local trend summaries."""
+    """Create one panel per selected label with local trend summaries."""
     palette = make_cluster_palette(selected_labels)
     z_table = build_cluster_z_table(df, selected_labels, bins=bins)
 
@@ -656,7 +656,7 @@ def plot_cluster_gallery(
     for ax in axes[n_panels:]:
         ax.axis("off")
 
-    fig.suptitle("Shattering Mirrors Selected Cluster Gallery", fontsize=17, y=0.995)
+    fig.suptitle("Shattering Mirrors Selected Labels", fontsize=17, y=0.995)
     fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.98))
     fig.savefig(out_path, dpi=180)
     plt.close(fig)
@@ -678,7 +678,7 @@ def add_kmeans_labels(df: pd.DataFrame, k: int = 8) -> pd.DataFrame:
     Optional k-means on numeric features.
 
     Symbolic hierarchy remains:
-        z_bucket + rho30
+        `z_bucket` + rho30
 
     K-means is only a secondary numeric grouping.
     """
@@ -774,7 +774,7 @@ def main() -> None:
     mirror_hits.to_csv(args.mirror_out, index=False)
 
     print(f"\nCalibrated h-scale alpha={df['h_scale'].iloc[0]:.6f}")
-    print("\nTop normalized residual clusters:")
+    print("\nTop normalized residual labels:")
     print(summary.to_string(index=False))
 
     print("\nStrict decimal mirror hits:")
@@ -811,7 +811,7 @@ def main() -> None:
         ensure_parent_dir(dashboard_path)
         ensure_parent_dir(gallery_path)
 
-        print("\nGenerating explanatory plots with native cluster filter:")
+        print("\nGenerating explanatory plots with selected labels:")
         for i, label in enumerate(selected_labels, start=1):
             print(f"  {i}. {label}")
 

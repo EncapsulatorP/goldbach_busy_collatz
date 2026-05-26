@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Goldbach super-compressed chamber analysis with cluster-filtered plots.
+Goldbach super-compressed residue analysis with filtered plots.
 
 This script keeps the `q mod 30 + i p mod 30` pair-fiber compression from
-`shattering_compressed.py`, but uses the native h-residual cluster filter from
+`shattering_compressed.py`, but uses the main residual-label filter from
 `shattering_mirrors.py` to decide which families to visualize.
 """
 
@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 from shattering_mirrors import (
     build_dataset,
     make_cluster_palette,
-    ordered_residual_buckets,
+    ordered_residual_labels,
     resolve_cluster_filter,
     sieve_bool,
 )
@@ -241,7 +241,7 @@ def plot_compressed_dashboard(
     top_k: int,
 ) -> pd.DataFrame:
     palette = make_cluster_palette(selected_labels)
-    z_labels = ordered_residual_buckets(df)
+    z_labels = ordered_residual_labels(df)
     rho_labels = sorted(df["rho30"].astype(int).unique())
 
     heat = (
@@ -256,9 +256,9 @@ def plot_compressed_dashboard(
     ax_heat, ax_bar, ax_eps, ax_r, ax_pair, ax_sig = axes.ravel()
 
     im = ax_heat.imshow(heat.values, aspect="auto", cmap="magma")
-    ax_heat.set_title("Number-level normalized residual chambers")
+    ax_heat.set_title("Number-level normalized residual labels")
     ax_heat.set_xlabel("rho30")
-    ax_heat.set_ylabel("z_bucket")
+    ax_heat.set_ylabel("z label")
     ax_heat.set_xticks(range(len(rho_labels)))
     ax_heat.set_xticklabels(rho_labels)
     ax_heat.set_yticks(range(len(z_labels)))
@@ -272,7 +272,7 @@ def plot_compressed_dashboard(
         ax_heat.text(jj, ii, str(i + 1), ha="center", va="center", color="white", fontsize=9, fontweight="bold")
     fig.colorbar(im, ax=ax_heat, fraction=0.046, pad=0.04, label="count")
 
-    ax_bar.set_title("Selected number-cluster sizes")
+    ax_bar.set_title("Selected number counts")
     bar_positions = np.arange(len(filtered_counts))
     ax_bar.bar(
         bar_positions,
@@ -347,7 +347,7 @@ def plot_compressed_dashboard(
         for i, label in enumerate(selected_labels)
     ]
     fig.legend(handles=handles, loc="lower center", ncol=2, frameon=False, bbox_to_anchor=(0.5, 0.01))
-    fig.suptitle("Shattering Compressed Cluster Dashboard", fontsize=17, y=0.995)
+    fig.suptitle("Shattering Compressed Residue Summary", fontsize=17, y=0.995)
     fig.tight_layout(rect=(0.0, 0.04, 1.0, 0.98))
     fig.savefig(out_path, dpi=180)
     plt.close(fig)
@@ -408,7 +408,7 @@ def plot_cluster_gallery(
         ax.axis("off")
 
     fig.colorbar(im, ax=axes[:n_panels].tolist(), fraction=0.025, pad=0.02, label="pair count")
-    fig.suptitle("Shattering Compressed Cluster Gallery", fontsize=17, y=0.995)
+    fig.suptitle("Shattering Compressed Selected Labels", fontsize=17, y=0.995)
     fig.savefig(out_path, dpi=180)
     plt.close(fig)
 

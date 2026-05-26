@@ -11,13 +11,13 @@ This repository is an exploratory Goldbach diagnostics workspace with Collatz ke
 
 ## What changed
 
-The old cluster axis built on `eps_h = r_G(N) - floor(h(N))` drifted with `N`, so it could make a clipped tail bucket look like a structural finding. The main clustering path now keeps `eps_h` only as a recorded diagnostic and instead uses:
+The previous clustering path used raw `eps_h = r_G(N) - floor(h(N))`, which drifts with `N`. The main clustering path now keeps `eps_h` only as a recorded diagnostic and instead uses:
 
 - a single global calibration of `h(N)` over the run
 - `z_h = (r - alpha*h) / sqrt(alpha*h)`
-- fixed-width `z_bucket` labels combined with `rho30 = N mod 30`
+- fixed-step `z_h` labels stored in `z_bucket`, paired with `rho30 = N mod 30`
 
-That makes the central residual axis comparable across the range and turns the cluster summaries back into diagnostics instead of a drift artifact.
+That keeps the residual summaries comparable across the range and avoids reading scale drift in `eps_h` as structure.
 
 ## Repository layout
 
@@ -91,7 +91,7 @@ The main dataset contains:
 - calibrated heuristic `h_cal`
 - raw residual `eps_h`
 - calibrated normalized residual `z_h`
-- chamber labels `z_bucket` and `native_cluster`
+- label columns `z_bucket` and `native_cluster`
 
 See [DATA_DICTIONARY.md](DATA_DICTIONARY.md) for column definitions.
 
@@ -100,7 +100,7 @@ See [DATA_DICTIONARY.md](DATA_DICTIONARY.md) for column definitions.
 - The residue-family plots are descriptive diagnostics.
 - The decimal mirror hits are negative controls and base-10 artifacts.
 - The compressed pair-fiber plots are visualization aids, not theorem-bearing objects.
-- If a residual bucket spans most of the range, that is evidence against the bucket as a finding, not evidence for it.
+- If one `z_bucket` label spans most of the range, that is a warning about the labeling choice, not a result by itself.
 
 ## References in repo
 
