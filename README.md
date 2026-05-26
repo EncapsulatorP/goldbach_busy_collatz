@@ -91,9 +91,17 @@ python scripts/shattering_mirrors.py \
 - [Goldbach Volume 5k v2](outputs/html/goldbach_volume_5k_v2.html)
 - [Goldbach Volume 10k mod210](outputs/html/goldbach_volume_10k_mod210.html)
 
-### Preview graphics (linked to artifacts)
+### 3D HTML screenshot previews (click to open interactive HTML)
 
-[![Goldbach 5k v2 Dashboard](outputs/plots/goldbach_volume_5k_v2_dashboard.png)](outputs/html/goldbach_volume_5k_v2.html)
+[![Goldbach Volume 5k (HTML screenshot)](outputs/plots/goldbach_volume_5k_html_screenshot.png)](outputs/html/goldbach_volume_5k.html)
+
+[![Goldbach Volume 5k mod30 (HTML screenshot)](outputs/plots/goldbach_volume_5k_mod30_html_screenshot.png)](outputs/html/goldbach_volume_5k_mod30.html)
+
+[![Goldbach Volume 5k v2 (HTML screenshot)](outputs/plots/goldbach_volume_5k_v2_html_screenshot.png)](outputs/html/goldbach_volume_5k_v2.html)
+
+[![Goldbach Volume 10k mod210 (HTML screenshot)](outputs/plots/goldbach_volume_10k_mod210_html_screenshot.png)](outputs/html/goldbach_volume_10k_mod210.html)
+
+### Additional static dashboards
 
 ![Shattering Mirrors 100k Dashboard](outputs/plots/shattering_mirrors_100k_dashboard.png)
 
