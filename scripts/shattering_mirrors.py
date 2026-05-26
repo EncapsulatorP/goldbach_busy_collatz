@@ -30,6 +30,7 @@ Use this as a diagnostic / clustering tool, not as a proof engine.
 import argparse
 import math
 from dataclasses import dataclass
+from pathlib import Path
 
 import matplotlib
 import numpy as np
@@ -42,6 +43,9 @@ from matplotlib import patches
 
 GOLDBACH_C2 = 0.6601618158468696
 # Product over p > 2 of (1 - 1/(p-1)^2)
+
+Z_BUCKET_STEP = 0.5
+Z_BUCKET_CLIP = 2.0
 
 
 def sieve_bool(limit: int) -> np.ndarray:
@@ -165,6 +169,24 @@ def eps_label(eps: int, clip: int = 5) -> str:
     return str(eps)
 
 
+def z_label(z: float, step: float = Z_BUCKET_STEP, clip: float = Z_BUCKET_CLIP) -> str:
+    """
+    Bucket normalized residuals on a fixed scale.
+
+    The clipped edge buckets exist only to keep the chamber table finite; the
+    meaningful comparison is whether occupancy concentrates away from zero.
+    """
+    if z <= -clip:
+        return f"<={-clip:.1f}"
+    if z >= clip:
+        return f">={clip:.1f}"
+
+    bucket = round(z / step) * step
+    if abs(bucket) < step / 2:
+        bucket = 0.0
+    return f"{bucket:+.1f}"
+
+
 @dataclass
 class CompressionRow:
     N: int
@@ -173,6 +195,9 @@ class CompressionRow:
     h: float
     h_floor: int
     eps_h: int
+    z_h_raw: float
+    h_scale: float
+    h_cal: float
     z_h: float
     boost_G: float
     delta10: int
@@ -183,6 +208,7 @@ class CompressionRow:
     root_native: str
     native_core: str
     eps_bucket: str
+    z_bucket: str
     native_cluster: str
 
 
@@ -194,9 +220,9 @@ def build_row(N: int, r: int, spf: np.ndarray) -> CompressionRow:
     h_floor = math.floor(h)
     eps_h = int(r - h_floor)
 
-    z_h = 0.0
+    z_h_raw = 0.0
     if h > 0:
-        z_h = (r - h) / math.sqrt(h)
+        z_h_raw = (r - h) / math.sqrt(h)
 
     delta10 = int(N - 10 * r)
     rho30 = int(N % 30)
@@ -208,8 +234,6 @@ def build_row(N: int, r: int, spf: np.ndarray) -> CompressionRow:
     native_core = f"{r}|({rho30},{eps_h})|{r}"
 
     bucket = eps_label(eps_h)
-    native_cluster = f"eps={bucket};rho30={rho30}"
-
     return CompressionRow(
         N=N,
         n=n,
@@ -217,7 +241,10 @@ def build_row(N: int, r: int, spf: np.ndarray) -> CompressionRow:
         h=float(h),
         h_floor=int(h_floor),
         eps_h=int(eps_h),
-        z_h=float(z_h),
+        z_h_raw=float(z_h_raw),
+        h_scale=1.0,
+        h_cal=float(h),
+        z_h=float(z_h_raw),
         boost_G=float(boost),
         delta10=delta10,
         rho30=rho30,
@@ -227,8 +254,55 @@ def build_row(N: int, r: int, spf: np.ndarray) -> CompressionRow:
         root_native=root_native,
         native_core=native_core,
         eps_bucket=bucket,
-        native_cluster=native_cluster,
+        z_bucket="",
+        native_cluster="",
     )
+
+
+def calibrated_h_scale(df: pd.DataFrame) -> float:
+    """
+    Fit one global multiplicative scale for h(N) so mean normalized residual is 0.
+
+    This does not upgrade the heuristic into a theorem; it only removes the
+    single global bias before bucketing residuals.
+    """
+    positive = df["h"] > 0
+    sqrt_h = np.sqrt(df.loc[positive, "h"].to_numpy())
+    r = df.loc[positive, "r"].to_numpy()
+
+    if len(sqrt_h) == 0:
+        return 1.0
+
+    return float((r / sqrt_h).sum() / sqrt_h.sum())
+
+
+def apply_residual_calibration(df: pd.DataFrame) -> pd.DataFrame:
+    """Attach calibrated h and normalized residual buckets to the dataset."""
+    out = df.copy()
+    scale = calibrated_h_scale(out)
+    out["h_scale"] = scale
+    out["h_cal"] = out["h"] * scale
+
+    z = np.zeros(len(out), dtype=np.float64)
+    positive = out["h_cal"] > 0
+    z[positive] = (
+        out.loc[positive, "r"].to_numpy() - out.loc[positive, "h_cal"].to_numpy()
+    ) / np.sqrt(out.loc[positive, "h_cal"].to_numpy())
+    out["z_h"] = z
+    out["z_bucket"] = [z_label(value) for value in out["z_h"]]
+
+    if "native_cluster" in out.columns:
+        out["native_cluster"] = [
+            f"z={z_bucket};rho30={rho30}"
+            for z_bucket, rho30 in zip(out["z_bucket"], out["rho30"])
+        ]
+
+    return out
+
+
+def ensure_parent_dir(path: str) -> None:
+    parent = Path(path).expanduser().resolve().parent
+    parent.mkdir(parents=True, exist_ok=True)
 
 
 def build_dataset(max_n: int, include_strings: bool = True) -> pd.DataFrame:
@@ -275,6 +349,7 @@ def build_dataset(max_n: int, include_strings: bool = True) -> pd.DataFrame:
             )
 
     df = pd.DataFrame(rows)
+    df = apply_residual_calibration(df)
 
     print("[5/5] Done.")
     return df
@@ -282,16 +357,18 @@ def build_dataset(max_n: int, include_strings: bool = True) -> pd.DataFrame:
 
 def summarize_clusters(df: pd.DataFrame, top: int = 30) -> pd.DataFrame:
     """
-    Summary by h-residual bucket and native mod-30 chamber.
+    Summary by normalized residual bucket and native mod-30 chamber.
     """
     summary = (
-        df.groupby(["eps_bucket", "rho30"])
+        df.groupby(["z_bucket", "rho30"])
         .agg(
             count=("N", "count"),
             min_N=("N", "min"),
             max_N=("N", "max"),
             mean_r=("r", "mean"),
             mean_h=("h", "mean"),
+            mean_h_cal=("h_cal", "mean"),
+            mean_eps=("eps_h", "mean"),
             mean_z=("z_h", "mean"),
             mean_boost=("boost_G", "mean"),
         )
@@ -305,32 +382,34 @@ def summarize_clusters(df: pd.DataFrame, top: int = 30) -> pd.DataFrame:
 def full_cluster_counts(df: pd.DataFrame) -> pd.DataFrame:
     """Full native-cluster counts, not truncated to the top rows."""
     return (
-        df.groupby(["eps_bucket", "rho30", "native_cluster"])
+        df.groupby(["z_bucket", "rho30", "native_cluster"])
         .agg(
             count=("N", "count"),
             min_N=("N", "min"),
             max_N=("N", "max"),
             mean_r=("r", "mean"),
             mean_h=("h", "mean"),
+            mean_h_cal=("h_cal", "mean"),
+            mean_eps=("eps_h", "mean"),
             mean_z=("z_h", "mean"),
             mean_boost=("boost_G", "mean"),
         )
         .reset_index()
-        .sort_values(["count", "eps_bucket", "rho30"], ascending=[False, True, True])
+        .sort_values(["count", "z_bucket", "rho30"], ascending=[False, True, True])
     )
 
 
-def eps_bucket_sort_key(label: str) -> tuple[int, int]:
-    """Stable ordering for clipped epsilon buckets."""
-    if label.startswith("<-"):
-        return (-10_000, int(label[2:]))
-    if label.startswith(">"):
-        return (10_000, int(label[1:]))
-    return (0, int(label))
+def residual_bucket_sort_key(label: str) -> tuple[int, float]:
+    """Stable ordering for clipped normalized-residual buckets."""
+    if label.startswith("<="):
+        return (-10_000, float(label[2:]))
+    if label.startswith(">="):
+        return (10_000, float(label[2:]))
+    return (0, float(label))
 
 
-def ordered_eps_buckets(df: pd.DataFrame) -> list[str]:
-    labels = sorted(df["eps_bucket"].astype(str).unique(), key=eps_bucket_sort_key)
+def ordered_residual_buckets(df: pd.DataFrame) -> list[str]:
+    labels = sorted(df["z_bucket"].astype(str).unique(), key=residual_bucket_sort_key)
     return labels
 
 
@@ -350,7 +429,7 @@ def resolve_cluster_filter(
             raise ValueError(
                 "unknown native_cluster label(s): "
                 + ", ".join(missing)
-                + ". Use labels like 'eps=>5;rho30=6'."
+                + ". Use labels like 'z=+0.5;rho30=6'."
             )
     else:
         labels = counts["native_cluster"].head(top_clusters).tolist()
@@ -424,14 +503,14 @@ def plot_cluster_dashboard(
     """Create a multi-panel explanatory dashboard for the native cluster filter."""
     plot_df = filtered_cluster_frame(df, selected_labels)
     palette = make_cluster_palette(selected_labels)
-    eps_labels = ordered_eps_buckets(df)
+    z_labels = ordered_residual_buckets(df)
     rho_labels = sorted(df["rho30"].astype(int).unique())
 
     heat = (
-        df.groupby(["eps_bucket", "rho30"])
+        df.groupby(["z_bucket", "rho30"])
         .size()
         .unstack(fill_value=0)
-        .reindex(index=eps_labels, columns=rho_labels, fill_value=0)
+        .reindex(index=z_labels, columns=rho_labels, fill_value=0)
     )
 
     share_table = build_cluster_share_table(df, selected_labels, bins=bins)
@@ -441,17 +520,17 @@ def plot_cluster_dashboard(
     ax_heat, ax_bar, ax_z, ax_delta, ax_share, ax_centroid = axes.ravel()
 
     im = ax_heat.imshow(heat.values, aspect="auto", cmap="magma")
-    ax_heat.set_title("Native residual chambers: count heatmap")
+    ax_heat.set_title("Normalized residual chambers: count heatmap")
     ax_heat.set_xlabel("rho30")
-    ax_heat.set_ylabel("eps_bucket")
+    ax_heat.set_ylabel("z_bucket")
     ax_heat.set_xticks(range(len(rho_labels)))
     ax_heat.set_xticklabels(rho_labels)
-    ax_heat.set_yticks(range(len(eps_labels)))
-    ax_heat.set_yticklabels(eps_labels)
+    ax_heat.set_yticks(range(len(z_labels)))
+    ax_heat.set_yticklabels(z_labels)
     for i, label in enumerate(selected_labels):
-        eps_bucket, rho_text = label.split(";rho30=")
+        z_bucket, rho_text = label.split(";rho30=")
         j = rho_labels.index(int(rho_text))
-        ii = eps_labels.index(eps_bucket.replace("eps=", ""))
+        ii = z_labels.index(z_bucket.replace("z=", ""))
         rect = patches.Rectangle((j - 0.5, ii - 0.5), 1, 1, fill=False, lw=2.5, ec=palette[label])
         ax_heat.add_patch(rect)
         ax_heat.text(j, ii, str(i + 1), ha="center", va="center", color="white", fontsize=9, fontweight="bold")
@@ -466,16 +545,16 @@ def plot_cluster_dashboard(
     ax_bar.set_xlabel("selected cluster id")
     ax_bar.set_ylabel("count")
     for pos, (_, row) in enumerate(filtered_counts.iterrows()):
-        ax_bar.text(pos, row["count"], f"{row['rho30']}\n{row['eps_bucket']}", ha="center", va="bottom", fontsize=8)
+        ax_bar.text(pos, row["count"], f"{row['rho30']}\n{row['z_bucket']}", ha="center", va="bottom", fontsize=8)
 
-    ax_z.set_title("N vs z_h with cluster filter highlight")
+    ax_z.set_title("N vs calibrated z_h with cluster filter highlight")
     ax_z.scatter(df["N"], df["z_h"], s=7, color="#b0b0b0", alpha=0.18, edgecolors="none", label="all points")
     for label in selected_labels:
         subset = plot_df[plot_df["native_cluster"] == label]
         ax_z.scatter(subset["N"], subset["z_h"], s=10, color=palette[label], alpha=0.8, edgecolors="none", label=label)
     ax_z.axhline(0.0, color="#444444", lw=1.0)
     ax_z.set_xlabel("N")
-    ax_z.set_ylabel("z_h = (r-h)/sqrt(h)")
+    ax_z.set_ylabel("z_h = (r - alpha*h)/sqrt(alpha*h)")
 
     ax_delta.set_title("N vs delta10 with cluster filter highlight")
     ax_delta.scatter(df["N"], df["delta10"], s=7, color="#b0b0b0", alpha=0.18, edgecolors="none")
@@ -564,6 +643,7 @@ def plot_cluster_gallery(
                 f"count={int(meta['count'])}\n"
                 f"N range=[{int(meta['min_N'])}, {int(meta['max_N'])}]\n"
                 f"mean_r={meta['mean_r']:.2f}, mean_h={meta['mean_h']:.2f}\n"
+                f"mean_h_cal={meta['mean_h_cal']:.2f}, mean_eps={meta['mean_eps']:.2f}\n"
                 f"mean_boost={meta['mean_boost']:.3f}"
             ),
             transform=ax.transAxes,
@@ -598,7 +678,7 @@ def add_kmeans_labels(df: pd.DataFrame, k: int = 8) -> pd.DataFrame:
     Optional k-means on numeric features.
 
     Symbolic hierarchy remains:
-        eps_bucket + rho30
+        z_bucket + rho30
 
     K-means is only a secondary numeric grouping.
     """
@@ -630,7 +710,7 @@ def add_kmeans_labels(df: pd.DataFrame, k: int = 8) -> pd.DataFrame:
     out["kmeans_cluster"] = km.fit_predict(X)
 
     out["hybrid_cluster"] = (
-        out["eps_bucket"].astype(str)
+        out["z_bucket"].astype(str)
         + "|rho30="
         + out["rho30"].astype(str)
         + "|k="
@@ -643,9 +723,9 @@ def add_kmeans_labels(df: pd.DataFrame, k: int = 8) -> pd.DataFrame:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--max-n", type=int, default=100_000)
-    parser.add_argument("--out", type=str, default="goldbach_h_clusters.csv")
-    parser.add_argument("--summary-out", type=str, default="goldbach_h_cluster_summary.csv")
-    parser.add_argument("--mirror-out", type=str, default="goldbach_decimal_mirror_hits.csv")
+    parser.add_argument("--out", type=str, default="outputs/csv/goldbach_h_clusters.csv")
+    parser.add_argument("--summary-out", type=str, default="outputs/csv/goldbach_h_cluster_summary.csv")
+    parser.add_argument("--mirror-out", type=str, default="outputs/csv/goldbach_decimal_mirror_hits.csv")
     parser.add_argument("--no-strings", action="store_true")
     parser.add_argument("--kmeans", action="store_true")
     parser.add_argument("--k", type=int, default=8)
@@ -653,7 +733,7 @@ def main() -> None:
     parser.add_argument(
         "--plot-prefix",
         type=str,
-        default="goldbach_h_cluster_plots",
+        default="outputs/plots/goldbach_h_cluster_plots",
         help="Prefix for dashboard/gallery plot files.",
     )
     parser.add_argument(
@@ -666,7 +746,7 @@ def main() -> None:
         "--cluster-filter",
         type=str,
         default="",
-        help="Comma-separated native_cluster labels to highlight, e.g. 'eps=>5;rho30=6,eps=>5;rho30=0'.",
+        help="Comma-separated native_cluster labels to highlight, e.g. 'z=+0.5;rho30=6,z=-0.5;rho30=0'.",
     )
     parser.add_argument(
         "--plot-bins",
@@ -686,15 +766,19 @@ def main() -> None:
     summary = summarize_clusters(df)
     mirror_hits = find_decimal_mirror_hits(df)
 
+    ensure_parent_dir(args.out)
+    ensure_parent_dir(args.summary_out)
+    ensure_parent_dir(args.mirror_out)
     df.to_csv(args.out, index=False)
     summary.to_csv(args.summary_out, index=False)
     mirror_hits.to_csv(args.mirror_out, index=False)
 
-    print("\nTop native residual clusters:")
+    print(f"\nCalibrated h-scale alpha={df['h_scale'].iloc[0]:.6f}")
+    print("\nTop normalized residual clusters:")
     print(summary.to_string(index=False))
 
     print("\nStrict decimal mirror hits:")
-    cols = ["N", "r", "h", "eps_h", "delta10", "rho30"]
+    cols = ["N", "r", "h", "h_cal", "eps_h", "z_h", "z_bucket", "delta10", "rho30"]
     extra_cols = [
         "fake_mirror",
         "h_mirror",
@@ -724,6 +808,8 @@ def main() -> None:
         )
         dashboard_path = f"{args.plot_prefix}_dashboard.png"
         gallery_path = f"{args.plot_prefix}_gallery.png"
+        ensure_parent_dir(dashboard_path)
+        ensure_parent_dir(gallery_path)
 
         print("\nGenerating explanatory plots with native cluster filter:")
         for i, label in enumerate(selected_labels, start=1):

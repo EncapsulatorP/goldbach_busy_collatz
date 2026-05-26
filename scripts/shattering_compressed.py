@@ -10,6 +10,7 @@ This script keeps the `q mod 30 + i p mod 30` pair-fiber compression from
 import argparse
 import math
 from collections import Counter
+from pathlib import Path
 
 import matplotlib
 import numpy as np
@@ -23,7 +24,7 @@ from shattering_mirrors import (
     build_dataset,
     full_cluster_counts,
     make_cluster_palette,
-    ordered_eps_buckets,
+    ordered_residual_buckets,
     resolve_cluster_filter,
     sieve_bool,
 )
@@ -119,7 +120,7 @@ def super_compressed_N(N: int, r: int, h_floor: int, is_prime) -> dict:
     Full number-level + pair-fiber compression.
 
     z_N:
-        eps_h + i*(N mod 30)
+        rounded z_h + i*(N mod 30)
 
     pair fiber:
         { q30 + i*p30 }_[N mod 30]
@@ -153,11 +154,16 @@ def build_selected_number_frame(
     selected_labels, filtered_counts = resolve_cluster_filter(df, cluster_filter, top_clusters)
     selected_numbers = df[df["native_cluster"].isin(selected_labels)].copy()
     selected_numbers["z_N"] = [
-        gi_label(eps_h, rho30)
-        for eps_h, rho30 in zip(selected_numbers["eps_h"], selected_numbers["rho30"])
+        f"{z_bucket}+{rho30}i"
+        for z_bucket, rho30 in zip(selected_numbers["z_bucket"], selected_numbers["rho30"])
     ]
     selected_numbers["pair_fiber_size"] = selected_numbers["r"]
     return df, selected_labels, filtered_counts, selected_numbers
+
+
+def ensure_parent_dir(path: str) -> None:
+    parent = Path(path).expanduser().resolve().parent
+    parent.mkdir(parents=True, exist_ok=True)
 
 
 def build_pair_aggregates(
@@ -242,14 +248,14 @@ def plot_compressed_dashboard(
     top_k: int,
 ) -> pd.DataFrame:
     palette = make_cluster_palette(selected_labels)
-    eps_labels = ordered_eps_buckets(df)
+    z_labels = ordered_residual_buckets(df)
     rho_labels = sorted(df["rho30"].astype(int).unique())
 
     heat = (
-        df.groupby(["eps_bucket", "rho30"])
+        df.groupby(["z_bucket", "rho30"])
         .size()
         .unstack(fill_value=0)
-        .reindex(index=eps_labels, columns=rho_labels, fill_value=0)
+        .reindex(index=z_labels, columns=rho_labels, fill_value=0)
     )
     signature_df = top_signature_table(pair_agg["per_cluster_signatures"], selected_labels, top_k=top_k)
 
@@ -257,17 +263,17 @@ def plot_compressed_dashboard(
     ax_heat, ax_bar, ax_eps, ax_r, ax_pair, ax_sig = axes.ravel()
 
     im = ax_heat.imshow(heat.values, aspect="auto", cmap="magma")
-    ax_heat.set_title("Number-level native chambers")
+    ax_heat.set_title("Number-level normalized residual chambers")
     ax_heat.set_xlabel("rho30")
-    ax_heat.set_ylabel("eps_bucket")
+    ax_heat.set_ylabel("z_bucket")
     ax_heat.set_xticks(range(len(rho_labels)))
     ax_heat.set_xticklabels(rho_labels)
-    ax_heat.set_yticks(range(len(eps_labels)))
-    ax_heat.set_yticklabels(eps_labels)
+    ax_heat.set_yticks(range(len(z_labels)))
+    ax_heat.set_yticklabels(z_labels)
     for i, label in enumerate(selected_labels):
-        eps_bucket, rho_text = label.split(";rho30=")
+        z_bucket, rho_text = label.split(";rho30=")
         jj = rho_labels.index(int(rho_text))
-        ii = eps_labels.index(eps_bucket.replace("eps=", ""))
+        ii = z_labels.index(z_bucket.replace("z=", ""))
         rect = patches.Rectangle((jj - 0.5, ii - 0.5), 1, 1, fill=False, lw=2.5, ec=palette[label])
         ax_heat.add_patch(rect)
         ax_heat.text(jj, ii, str(i + 1), ha="center", va="center", color="white", fontsize=9, fontweight="bold")
@@ -286,16 +292,16 @@ def plot_compressed_dashboard(
     ax_bar.set_xlabel("selected cluster id")
     ax_bar.set_ylabel("count of N values")
     for pos, (_, row) in enumerate(filtered_counts.iterrows()):
-        ax_bar.text(pos, row["count"], f"{row['rho30']}\n{row['eps_bucket']}", ha="center", va="bottom", fontsize=8)
+        ax_bar.text(pos, row["count"], f"{row['rho30']}\n{row['z_bucket']}", ha="center", va="bottom", fontsize=8)
 
-    ax_eps.set_title("N vs eps_h with selected clusters highlighted")
-    ax_eps.scatter(df["N"], df["eps_h"], s=7, color="#b0b0b0", alpha=0.18, edgecolors="none")
+    ax_eps.set_title("N vs calibrated z_h with selected clusters highlighted")
+    ax_eps.scatter(df["N"], df["z_h"], s=7, color="#b0b0b0", alpha=0.18, edgecolors="none")
     for label in selected_labels:
         subset = df[df["native_cluster"] == label]
-        ax_eps.scatter(subset["N"], subset["eps_h"], s=11, color=palette[label], alpha=0.82, edgecolors="none")
+        ax_eps.scatter(subset["N"], subset["z_h"], s=11, color=palette[label], alpha=0.82, edgecolors="none")
     ax_eps.axhline(0.0, color="#444444", lw=1.0)
     ax_eps.set_xlabel("N")
-    ax_eps.set_ylabel("eps_h = r_G(N) - floor(h(N))")
+    ax_eps.set_ylabel("z_h = (r - alpha*h)/sqrt(alpha*h)")
 
     ax_r.set_title("N vs pair-fiber size r_G(N)")
     ax_r.scatter(df["N"], df["r"], s=7, color="#b0b0b0", alpha=0.18, edgecolors="none")
@@ -421,8 +427,26 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--plot-prefix",
         type=str,
-        default="shattering_compressed",
+        default="outputs/plots/shattering_compressed",
         help="Prefix for PNG and CSV outputs.",
+    )
+    parser.add_argument(
+        "--numbers-out",
+        type=str,
+        default="outputs/csv/shattering_compressed_numbers.csv",
+        help="CSV path for the selected number rows.",
+    )
+    parser.add_argument(
+        "--summary-out",
+        type=str,
+        default="outputs/csv/shattering_compressed_cluster_summary.csv",
+        help="CSV path for the selected cluster summary.",
+    )
+    parser.add_argument(
+        "--signatures-out",
+        type=str,
+        default="outputs/csv/shattering_compressed_pair_signatures.csv",
+        help="CSV path for the pair_i signature table.",
     )
     parser.add_argument(
         "--plot-top-clusters",
@@ -434,7 +458,7 @@ def parse_args() -> argparse.Namespace:
         "--cluster-filter",
         type=str,
         default="",
-        help="Comma-separated native_cluster labels such as 'eps=>5;rho30=6,eps=>5;rho30=0'.",
+        help="Comma-separated native_cluster labels such as 'z=+0.5;rho30=6,z=-0.5;rho30=0'.",
     )
     parser.add_argument(
         "--top-signatures",
@@ -455,9 +479,12 @@ def main() -> None:
         top_clusters=args.plot_top_clusters,
     )
 
-    prefix = args.plot_prefix
-    counts_path = f"{prefix}_cluster_summary.csv"
-    numbers_path = f"{prefix}_numbers.csv"
+    counts_path = args.summary_out
+    numbers_path = args.numbers_out
+    signature_path = args.signatures_out
+    ensure_parent_dir(counts_path)
+    ensure_parent_dir(numbers_path)
+    ensure_parent_dir(signature_path)
     filtered_counts.to_csv(counts_path, index=False)
     selected_numbers.to_csv(numbers_path, index=False)
     print(f"[2/7] Saved selected number rows to {numbers_path}")
@@ -476,9 +503,10 @@ def main() -> None:
     print(f"[6/7] Aggregate pair fibers for {len(selected_numbers)} selected N values...")
     pair_agg = build_pair_aggregates(selected_numbers, selected_labels, is_prime)
 
-    dashboard_path = f"{prefix}_dashboard.png"
-    gallery_path = f"{prefix}_gallery.png"
-    signature_path = f"{prefix}_pair_signatures.csv"
+    dashboard_path = f"{args.plot_prefix}_dashboard.png"
+    gallery_path = f"{args.plot_prefix}_gallery.png"
+    ensure_parent_dir(dashboard_path)
+    ensure_parent_dir(gallery_path)
 
     print("[7/7] Render compressed plots...")
     signature_df = plot_compressed_dashboard(

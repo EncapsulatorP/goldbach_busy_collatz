@@ -1,75 +1,52 @@
 # Results Snapshot
 
-This document records factual outputs currently present in this repository.
+This document records the current interpretation of the checked-in outputs.
 
-## Output Inventory
+## Output inventory
 
-- CSV files: 25 files in [outputs/csv](outputs/csv)
-- HTML files: 4 files in [outputs/html](outputs/html)
-- Plot PNG files: available in [outputs/plots](outputs/plots)
+- CSV files in [outputs/csv](outputs/csv)
+- HTML files in [outputs/html](outputs/html)
+- Plot PNG files in [outputs/plots](outputs/plots)
 
-## Key Empirical Counts
+## Current headline
 
-From existing generated artifacts:
+The main residual analysis is no longer based on `eps_h` buckets. The checked-in `shattering_mirrors` pipeline now applies one global calibration factor `alpha` to `h(N)` and clusters on normalized `z_h` buckets instead.
+
+That change matters because the previous `eps_h` bucket story was dominated by scale drift. A clipped tail bucket recurring across the whole range is not a chamber discovery; it is a sign that the variable is the wrong axis.
+
+## Key empirical counts
+
+From the generated artifacts:
 
 - [outputs/csv/goldbach_h_clusters.csv](outputs/csv/goldbach_h_clusters.csv): 49,999 rows
 - [outputs/csv/goldbach_h_cluster_summary.csv](outputs/csv/goldbach_h_cluster_summary.csv): 30 rows
 - [outputs/csv/goldbach_decimal_mirror_hits.csv](outputs/csv/goldbach_decimal_mirror_hits.csv): 13 rows
-- [outputs/csv/shattering_compressed_100k_numbers.csv](outputs/csv/shattering_compressed_100k_numbers.csv): 26,517 rows
-- [outputs/csv/shattering_compressed_100k_cluster_summary.csv](outputs/csv/shattering_compressed_100k_cluster_summary.csv): 8 rows
 
-## Cluster/Family Highlights
+## Normalized residual summary
 
-### Native residual cluster summary (100k range)
+On the 100k run, the calibrated scale is approximately `alpha = 1.225600`.
 
-Top rows in [outputs/csv/goldbach_h_cluster_summary.csv](outputs/csv/goldbach_h_cluster_summary.csv) include:
+Top rows in [outputs/csv/goldbach_h_cluster_summary.csv](outputs/csv/goldbach_h_cluster_summary.csv) now fall in narrow near-zero `z_bucket` bands rather than in a drifting `eps_h` tail. Representative rows are:
 
-- `eps_bucket=>5, rho30=6, count=3321, min_N=246, max_N=99996`
-- `eps_bucket=>5, rho30=0, count=3320, min_N=390, max_N=99990`
-- `eps_bucket=>5, rho30=24, count=3320, min_N=324, max_N=99984`
+- `z_bucket=-0.5, rho30=8, count=1223, min_N=8, max_N=99878`
+- `z_bucket=-0.5, rho30=2, count=1205, min_N=152, max_N=99932`
+- `z_bucket=+0.5, rho30=28, count=1169, min_N=58, max_N=99838`
 
-These are descriptive chamber occupancies from the selected residual model.
+Interpretation: the residual mass lives close to the calibrated mean. The cluster table is useful as a descriptive occupancy map, but it does not isolate a privileged chamber.
 
-### Decimal mirror hits
+## Decimal mirror hits
 
-[outputs/csv/goldbach_decimal_mirror_hits.csv](outputs/csv/goldbach_decimal_mirror_hits.csv) contains 13 strict hits for the criterion used in code (`r_G(N) = floor(N/10)`).
+[outputs/csv/goldbach_decimal_mirror_hits.csv](outputs/csv/goldbach_decimal_mirror_hits.csv) contains 13 strict hits for `r_G(N) = floor(N/10)`.
 
-This is treated as a base-10 artifact/diagnostic and not as a theorem claim.
+This remains a base-10 artifact / negative control, not a theorem claim.
 
-### Family summaries
+## Compressed views
 
-From [outputs/csv/goldbach_volume_5k_mod30_family_summary.csv](outputs/csv/goldbach_volume_5k_mod30_family_summary.csv) and [outputs/csv/goldbach_volume_5k_v2_family_summary.csv](outputs/csv/goldbach_volume_5k_v2_family_summary.csv):
+The compressed script still visualizes pair-fiber residue structure, but it now inherits the normalized `native_cluster` labels from `shattering_mirrors.py`. That keeps the pair-level plots aligned with the corrected residual axis.
 
-- `shell_other`: 1321
-- `cone_3`: 667
-- `ring_5`: 334
-- `mobius_3x5`: 166
-- `spine_none`: 11
+## Scope and caveat
 
-From [outputs/csv/goldbach_volume_10k_mod210_family_summary.csv](outputs/csv/goldbach_volume_10k_mod210_family_summary.csv):
-
-- `cone_3`: 369
-- `mobius_3x5`: 138
-- `ring_5`: 46
-
-## Visual Artifacts
-
-Interactive pages:
-
-- [outputs/html/goldbach_volume_5k.html](outputs/html/goldbach_volume_5k.html)
-- [outputs/html/goldbach_volume_5k_mod30.html](outputs/html/goldbach_volume_5k_mod30.html)
-- [outputs/html/goldbach_volume_5k_v2.html](outputs/html/goldbach_volume_5k_v2.html)
-- [outputs/html/goldbach_volume_10k_mod210.html](outputs/html/goldbach_volume_10k_mod210.html)
-
-Static dashboards and galleries:
-
-- [outputs/plots/shattering_mirrors_100k_dashboard.png](outputs/plots/shattering_mirrors_100k_dashboard.png)
-- [outputs/plots/shattering_mirrors_100k_gallery.png](outputs/plots/shattering_mirrors_100k_gallery.png)
-- [outputs/plots/shattering_compressed_100k_dashboard.png](outputs/plots/shattering_compressed_100k_dashboard.png)
-- [outputs/plots/shattering_compressed_100k_gallery.png](outputs/plots/shattering_compressed_100k_gallery.png)
-
-## Scope and Caveat
-
-- Goldbach computations here are empirical and heuristic-assisted.
-- No proof of the Goldbach conjecture is claimed.
-- Collatz `3m+1` and `5m+1` are acknowledged as context for integer-dynamics exploration, but this result set is Goldbach-centric.
+- Goldbach counts here are exact on the tested finite ranges.
+- The heuristic comparisons are empirical and calibration-assisted.
+- A cleaner residual plot is still not a proof.
+- The most valuable result so far is negative: after removing the raw-residual drift, the chamber story becomes much less dramatic.
