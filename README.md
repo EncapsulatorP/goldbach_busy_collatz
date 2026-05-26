@@ -112,3 +112,4 @@ python scripts/shattering_mirrors.py \
 For concrete dataset counts and observed patterns, see:
 
 - [RESULTS.md](RESULTS.md)
+- [next_steps.md](next_steps.md)
