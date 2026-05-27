@@ -1,0 +1,7 @@
+time,source_state,read_symbol,write_symbol,move,next_state,source_head,next_head,local_word,plaquette_residues,plaquette_sum,plaquette_sum_mod,plaquette_power_sum,plaquette_power_sum_mod,rule_residue,rule_code
+0,A,0,1,R,B,0,1,000,"1,11,1,11",444,24,12219994,4,5,A0->1RB
+1,B,0,1,L,A,1,0,100,"7,11,1,13",662,2,217112050,10,15,B0->1LA
+2,A,1,1,L,B,0,-1,011,"1,13,7,11",932,2,25463314,4,14,A1->1LB
+3,B,0,1,L,A,-1,-2,001,"1,11,7,11",1440,0,104367406,16,17,B0->1LA
+4,A,0,1,R,B,-2,-1,001,"1,11,7,13",1652,2,5478766,16,3,A0->1RB
+5,B,1,1,R,H,-1,0,111,"7,13,7,13",760,10,66673150,10,3,B1->1RH
