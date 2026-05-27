@@ -1,0 +1,9 @@
+state_label,z_h_range,approx_lower,approx_upper,meaning
+<=-2.0,z_h ≤ -2.0,-2.5,-2.0002,Severely below expected: 2+ standard deviations fewer Goldbach pairs than the heuristic predicts
+-2.0,-2.000  ≤  z_h  <  -1.500,-2.0,-1.5002,Below expected (z_h ≈ -2.0): actual Goldbach count is slightly fewer than the calibrated heuristic
+-1.0,-1.500  ≤  z_h  <  -0.500,-1.4999,-0.5002,Below expected (z_h ≈ -1.0): actual Goldbach count is slightly fewer than the calibrated heuristic
++0.0,-0.500  ≤  z_h  <  0.500,-0.4999,0.4999,On target (z_h ≈ 0): actual Goldbach count closely matches the calibrated heuristic
++1.0,0.500  ≤  z_h  <  1.500,0.5002,1.4999,Above expected (z_h ≈ +1.0): actual Goldbach count is slightly more than the calibrated heuristic
++2.0,1.500  ≤  z_h  <  2.000,1.5002,2.0,Above expected (z_h ≈ +2.0): actual Goldbach count is slightly more than the calibrated heuristic
+>=2.0,z_h ≥ 2.0,2.0002,2.5,Severely above expected: 2+ standard deviations more Goldbach pairs than the heuristic predicts
+missing,N/A,,,"No even N values fall in this (window, rho30) cell"

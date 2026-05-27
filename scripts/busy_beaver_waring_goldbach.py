@@ -53,6 +53,15 @@ TRANSITION_RANK = {
     "STOP": 4,
 }
 
+# Shell labels: residue mod 30 → (description, plot colour)
+# Each residue class is one "prime-boost shell" in the space-time tableau.
+SHELL_META: dict[int, tuple[str, str]] = {
+    1:  ("blank  / no head",    "#4a9eff"),   # blue  — background tape
+    7:  ("symbol=1 / no head",  "#ff7c43"),   # amber — written cells
+    11: ("blank  + head",       "#a8e6a3"),   # green — head on blank
+    13: ("symbol=1 + head",     "#ffd700"),   # gold  — head on symbol=1
+}
+
 
 @dataclass(frozen=True)
 class Transition:
@@ -111,6 +120,24 @@ def builtin_machines() -> dict[str, MachineSpec]:
                 ("B", 1): Transition(write=1, move=1, next_state="B"),
                 ("C", 0): Transition(write=1, move=-1, next_state="C"),
                 ("C", 1): Transition(write=1, move=-1, next_state="A"),
+            },
+        ),
+        # BB(4) champion: 107 steps, 13 ones (Rado 1962 / Brady 1983)
+        # This is the verified 4-state 2-symbol busy beaver.
+        "bb4": MachineSpec(
+            name="bb4",
+            states=("A", "B", "C", "D"),
+            start_state="A",
+            halt_state="H",
+            transitions={
+                ("A", 0): Transition(write=1, move=1,  next_state="B"),
+                ("A", 1): Transition(write=1, move=-1, next_state="B"),
+                ("B", 0): Transition(write=1, move=-1, next_state="A"),
+                ("B", 1): Transition(write=0, move=-1, next_state="C"),
+                ("C", 0): Transition(write=1, move=1,  next_state="H"),
+                ("C", 1): Transition(write=1, move=-1, next_state="D"),
+                ("D", 0): Transition(write=1, move=1,  next_state="D"),
+                ("D", 1): Transition(write=0, move=1,  next_state="A"),
             },
         ),
     }

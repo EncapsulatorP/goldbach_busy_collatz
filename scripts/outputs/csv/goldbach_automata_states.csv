@@ -1,4 +1,4 @@
-time_index,N_start,N_end,rho30,state_label,cell_total,state_count,state_share,mean_z
+time_index,N_start,N_end,rho30,state_label,cell_total,state_count,state_share,mean_z_h
 0,4,1203,0,-1.0,40,21,0.525,-0.7359800049956331
 0,4,1203,2,-1.0,40,14,0.35,-0.953319946807557
 0,4,1203,4,+1.0,40,19,0.475,0.8292135525309406
