@@ -73,6 +73,7 @@ python scripts/shattering_compressed.py \
 
 # Busy Beaver space-time tableau with a Waring-Goldbach-style encoding
 python scripts/busy_beaver_waring_goldbach.py --machine bb3 --plot
+python scripts/busy_beaver_waring_goldbach.py --machine bb4 --max-steps 200 --plot --plot-shells
 
 # Goldbach z/rho automata search and dashboard
 python scripts/goldbach_automata.py --max-n 100000
@@ -98,6 +99,15 @@ Click any screenshot to open the interactive HTML artifact:
 [![Goldbach Volume 5k v2 HTML preview](outputs/plots/goldbach_volume_5k_v2_html_screenshot.png)](outputs/html/goldbach_volume_5k_v2.html)
 
 [![Goldbach Volume 10k mod210 HTML preview](outputs/plots/goldbach_volume_10k_mod210_html_screenshot.png)](outputs/html/goldbach_volume_10k_mod210.html)
+
+## Busy Beaver previews
+
+The BB4 run needs a larger step cap than the default because the built-in 4-state
+machine halts after 107 steps.
+
+- BB4 dashboard: [outputs/plots/busy_beaver_waring_goldbach_bb4_dashboard.png](outputs/plots/busy_beaver_waring_goldbach_bb4_dashboard.png)
+- BB4 shell diagram: [outputs/plots/busy_beaver_waring_goldbach_bb4_shells.png](outputs/plots/busy_beaver_waring_goldbach_bb4_shells.png)
+- BB4 cell tableau: [outputs/csv/busy_beaver_waring_goldbach_bb4_cells.csv](outputs/csv/busy_beaver_waring_goldbach_bb4_cells.csv)
 
 ## Data model
 
