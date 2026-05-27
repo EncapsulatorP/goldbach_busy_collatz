@@ -757,7 +757,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rows-out", default=None)
     parser.add_argument("--tiles-out", default=None)
     parser.add_argument("--plot-out", default=None)
-    parser.add_argument("--plot", action="store_true")
+    parser.add_argument("--plot", action="store_true",
+                        help="Save classic 3-panel tableau plot.")
+    parser.add_argument(
+        "--plot-shells", action="store_true",
+        help=(
+            "Save four-panel shell-shaped diagram: concentric prime-boost rings, "
+            "exponent-evolution per shell, and Waring-Goldbach mass spiral."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -787,6 +795,10 @@ def main() -> None:
     if args.plot:
         plot_tableau(cell_df, row_df, machine, paths["plot"])
 
+    if args.plot_shells:
+        shell_plot_path = paths["plot"].replace("_dashboard.png", "_shells.png")
+        plot_shell_tableau(cell_df, row_df, machine, shell_plot_path)
+
     halted = bool(history[-1].halted)
     step_count = len(history) - 1
     ones_count = sum(history[-1].tape.values())
@@ -800,6 +812,9 @@ def main() -> None:
     print(f"tiles_csv={paths['tiles']}")
     if args.plot:
         print(f"plot_png={paths['plot']}")
+    if args.plot_shells:
+        shell_plot_path = paths["plot"].replace("_dashboard.png", "_shells.png")
+        print(f"shell_plot_png={shell_plot_path}")
     if not halted:
         print("warning=max_steps reached before halting")
 
