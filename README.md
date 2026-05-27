@@ -1,6 +1,6 @@
 # Goldbach-Collatz Research Workspace
 
-This repository is an exploratory Goldbach diagnostics workspace with Collatz kept as context only.
+This repository is an exploratory Goldbach diagnostics workspace with Collatz kept as context only for $\alpha = 1/3, $\alpha= 1/5.$
 
 ## Mathematical status
 
