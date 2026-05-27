@@ -34,6 +34,7 @@ from shattering_mirrors import (
     exact_goldbach_counts_fft,
     h_goldbach,
     local_goldbach_boost,
+    reciprocal_log_density_convolution,
     spf_sieve,
     sieve_bool,
 )
@@ -158,13 +159,16 @@ def build_volume_dataset(max_n: int, modulus: int) -> tuple[pd.DataFrame, np.nda
     is_prime = sieve_bool(max_n)
     prime_list = np.flatnonzero(is_prime)
 
-    print(f"[2/6] Build SPF up to {max_n // 2}...")
-    spf = spf_sieve(max_n // 2)
+    print(f"[2/6] Build SPF up to {max_n}...")
+    spf = spf_sieve(max_n)
 
-    print(f"[3/6] Compute exact Goldbach counts by FFT...")
+    print("[3/6] Build reciprocal-log density convolution...")
+    density_conv = reciprocal_log_density_convolution(max_n)
+
+    print(f"[4/6] Compute exact Goldbach counts by FFT...")
     r_counts = exact_goldbach_counts_fft(max_n, is_prime)
 
-    print(f"[4/6] Build raw volume rows modulo {modulus}...")
+    print(f"[5/6] Build raw volume rows modulo {modulus}...")
     rows: list[dict] = []
     residue_column = "rho30" if modulus == 30 else "rho_mod"
     residue_label = f"rho{modulus}"
@@ -172,8 +176,8 @@ def build_volume_dataset(max_n: int, modulus: int) -> tuple[pd.DataFrame, np.nda
     for N in range(4, max_n + 1, 2):
         n = N // 2
         r = int(r_counts[N])
-        boost = local_goldbach_boost(n, spf)
-        h = float(h_goldbach(N, boost))
+        boost = local_goldbach_boost(N, spf)
+        h = float(h_goldbach(N, boost, density_conv=density_conv))
         h_floor = int(math.floor(h))
         eps_h = int(r - h_floor)
         z_h = float((r - h) / math.sqrt(h)) if h > 0 else 0.0
@@ -252,7 +256,7 @@ def build_volume_dataset(max_n: int, modulus: int) -> tuple[pd.DataFrame, np.nda
             "z",
         ]
 
-    print("[5/6] Build summaries...")
+    print("[6/6] Build summaries...")
     df = df[ordered_columns]
     return df, is_prime, prime_list
 

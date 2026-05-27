@@ -24,7 +24,7 @@ Core numeric quantities:
 
     r       = exact unordered Goldbach count r_G(N)
     h       = Hardy-Littlewood expected Goldbach count
-    h_cal   = fitted heuristic h * (alpha + beta / log N)
+    h_cal   = fitted heuristic h * exp(alpha + beta / log N)
     z_h     = (r - h_cal) / sqrt(c * h_cal)
     eps_h   = r_G(N) - floor(h(N))
     delta10 = N - 10*r_G(N)
@@ -314,20 +314,23 @@ def calibrated_h_model(df: pd.DataFrame) -> tuple[float, float]:
     """
     Fit:
 
-        h_cal(N) = h(N) * (alpha + beta / log N)
+        h_cal(N) = h(N) * exp(alpha + beta / log N)
 
-    by least squares against the exact counts.
+    by least squares on the log ratio r/h. This keeps h_cal strictly positive
+    even on small finite ranges where an unconstrained affine scale can go
+    negative near N = 4.
     """
     positive = df["h"] > 0
     h = df.loc[positive, "h"].to_numpy(dtype=np.float64)
     log_n = np.log(df.loc[positive, "N"].to_numpy(dtype=np.float64))
-    r = df.loc[positive, "r"].to_numpy()
+    r = df.loc[positive, "r"].to_numpy(dtype=np.float64)
 
     if len(h) == 0:
         return 1.0, 0.0
 
-    X = np.column_stack([h, h / log_n])
-    coeffs, _, _, _ = np.linalg.lstsq(X, r, rcond=None)
+    y = np.log(np.maximum(r, 1e-12) / h)
+    X = np.column_stack([np.ones(len(h), dtype=np.float64), 1.0 / log_n])
+    coeffs, _, _, _ = np.linalg.lstsq(X, y, rcond=None)
     alpha = float(coeffs[0])
     beta = float(coeffs[1])
     return alpha, beta
@@ -351,7 +354,7 @@ def apply_residual_calibration(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
     alpha, beta = calibrated_h_model(out)
     log_n = np.log(out["N"].to_numpy(dtype=np.float64))
-    h_cal = out["h"].to_numpy(dtype=np.float64) * (alpha + beta / log_n)
+    h_cal = out["h"].to_numpy(dtype=np.float64) * np.exp(alpha + beta / log_n)
     h_cal = np.maximum(h_cal, 1e-12)
 
     out["h_alpha"] = alpha
@@ -394,7 +397,7 @@ def build_dataset(max_n: int, include_strings: bool = True) -> pd.DataFrame:
     if max_n < 4:
         raise ValueError("max_n must be >= 4")
 
-    print(f"[1/5] Sieve primes up to {max_n}...")
+    print(f"[1/6] Sieve primes up to {max_n}...")
     is_prime = sieve_bool(max_n)
 
     print(f"[2/6] Build SPF up to {max_n}...")

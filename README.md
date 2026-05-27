@@ -1,6 +1,8 @@
-# Goldbach-Collatz Research Workspace
+# Goldbach Diagnostics Workspace
 
-This repository is an exploratory Goldbach diagnostics workspace with Collatz kept as context only for $\alpha = 1/3, $\alpha= 1/5.$
+Repository name aside, the active codebase is a Goldbach diagnostics workspace.
+Collatz is historical context only, and the Busy Beaver script is a separate
+toy encoding experiment rather than part of the main inference path.
 
 ## Mathematical status
 
@@ -9,15 +11,18 @@ This repository is an exploratory Goldbach diagnostics workspace with Collatz ke
 - The scripts compute exact Goldbach counts on finite ranges and compare them to heuristic expectations.
 - The checked-in Collatz references are framing only. The current code and outputs are overwhelmingly Goldbach-centric.
 
-## What changed
+## Model Status
 
-The previous clustering path used raw `eps_h = r_G(N) - floor(h(N))`, which drifts with `N`. The main clustering path now keeps `eps_h` only as a recorded diagnostic and instead uses:
+The main pipeline treats the heuristic as a model to be repaired, not as a
+finished reference curve.
 
-- a single global calibration of `h(N)` over the run
-- `z_h = (r - alpha*h) / sqrt(alpha*h)`
-- fixed-step `z_h` labels stored in `z_bucket`, paired with `rho30 = N mod 30`
+- Raw `h(N)` is built from a reciprocal-log density convolution times the Hardy-Littlewood singular-series boost.
+- Calibrated `h_cal(N)` is a positive two-parameter correction of the form `h * exp(alpha + beta / log N)`.
+- `z_h` is variance-scaled as `(r - h_cal) / sqrt(c * h_cal)` using an empirical fit for `c`.
+- Legacy `eps_h`, `h_floor`, and mirror strings are retained only as diagnostics and backward-compatible CSV columns.
 
-That keeps the residual summaries comparable across the range and avoids reading scale drift in `eps_h` as structure.
+That is a stricter setup than the older `alpha * h` normalization, but it does
+not by itself remove all model misspecification.
 
 ## Repository layout
 
@@ -66,6 +71,9 @@ python scripts/shattering_compressed.py \
 
 # Busy Beaver space-time tableau with a Waring-Goldbach-style encoding
 python scripts/busy_beaver_waring_goldbach.py --machine bb3 --plot
+
+# Legacy 3D volume splash, rebuilt around the same raw heuristic
+python scripts/goldbach_volume.py --max-n 5000 --plot --html
 ```
 
 Run the regression checks with:
@@ -92,18 +100,23 @@ The main dataset contains:
 
 - exact counts `r`
 - raw heuristic `h`
+- fitted heuristic coefficients `h_alpha` and `h_beta`
+- fitted variance scale `var_scale`
 - calibrated heuristic `h_cal`
-- raw residual `eps_h`
 - calibrated normalized residual `z_h`
+- legacy diagnostic residual `eps_h`
 - label columns `z_bucket` and `native_cluster`
 
 See [DATA_DICTIONARY.md](DATA_DICTIONARY.md) for column definitions.
 
 ## Scope boundaries
 
+- Goldbach exact counting is the core result-producing path.
 - The residue-family plots are descriptive diagnostics.
 - The decimal mirror hits are negative controls and base-10 artifacts.
 - The compressed pair-fiber plots are visualization aids, not theorem-bearing objects.
+- The Busy Beaver script is a separate encoding toy, not evidence about Goldbach.
+- Collatz is not part of the current measured pipeline; the repo name is historical.
 - If one `z_bucket` label spans most of the range, that is a warning about the labeling choice, not a result by itself.
 
 ## References in repo

@@ -294,7 +294,7 @@ def plot_compressed_dashboard(
         ax_eps.scatter(subset["N"], subset["z_h"], s=11, color=palette[label], alpha=0.82, edgecolors="none")
     ax_eps.axhline(0.0, color="#444444", lw=1.0)
     ax_eps.set_xlabel("N")
-    ax_eps.set_ylabel("z_h = (r - alpha*h)/sqrt(alpha*h)")
+    ax_eps.set_ylabel("z_h = (r - h_cal)/sqrt(c * h_cal)")
 
     ax_r.set_title("N vs pair-fiber size r_G(N)")
     ax_r.scatter(df["N"], df["r"], s=7, color="#b0b0b0", alpha=0.18, edgecolors="none")

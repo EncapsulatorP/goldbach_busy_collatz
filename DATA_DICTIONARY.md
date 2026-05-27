@@ -1,6 +1,7 @@
 # Data Dictionary
 
-This repo is currently Goldbach-centric. The main CSVs come from `scripts/shattering_mirrors.py` and `scripts/shattering_compressed.py`.
+This repo is currently Goldbach-centric. The main CSVs come from
+`scripts/shattering_mirrors.py` and `scripts/shattering_compressed.py`.
 
 ## Core count columns
 
@@ -11,15 +12,16 @@ This repo is currently Goldbach-centric. The main CSVs come from `scripts/shatte
 
 ## Heuristic and residual columns
 
-- `h`: raw Hardy-Littlewood-style heuristic count used by the scripts.
-- `h_scale`: one global multiplicative calibration factor fitted over the run so the normalized residual has mean 0.
-- `h_cal`: calibrated heuristic `h_scale * h`.
-- `h_floor`: `floor(h)`. This is retained because older diagnostics used it.
-- `eps_h`: raw integer residual `r - floor(h)`.
-- `eps_bucket`: legacy column name for a clipped `eps_h` label. This is now a diagnostic only, not the main clustering axis.
-- `z_h_raw`: raw normalized residual `(r - h) / sqrt(h)` before global calibration.
-- `z_h`: calibrated normalized residual `(r - h_cal) / sqrt(h_cal)`.
-- `z_bucket`: current column name for the discretized `z_h` label used in summaries.
+- `h`: raw heuristic count built from a reciprocal-log density convolution and the Goldbach singular-series boost.
+- `h_alpha`, `h_beta`: fitted two-parameter correction terms used in `h_cal = h * exp(alpha + beta / log N)`. These are repeated on every row for run provenance.
+- `h_cal`: calibrated heuristic after the positive two-parameter correction.
+- `var_scale`: fitted `c` in the working variance model `Var(r_G(N) | N) ~= c * h_cal(N)`.
+- `z_h_raw`: raw normalized residual `(r - h) / sqrt(h)` before calibration.
+- `z_h`: calibrated normalized residual `(r - h_cal) / sqrt(c * h_cal)`.
+- `z_bucket`: discretized `z_h` label used in summaries.
+- `h_floor`: `floor(h)`. Retained only for legacy diagnostics.
+- `eps_h`: raw integer residual `r - floor(h)`. Legacy diagnostic only.
+- `eps_bucket`: clipped `eps_h` label. Legacy diagnostic only, not the clustering axis.
 
 ## Structural columns
 
@@ -36,7 +38,9 @@ This repo is currently Goldbach-centric. The main CSVs come from `scripts/shatte
 - `root_native`: `eps_h|rho30|eps_h`.
 - `native_core`: `r|(rho30,eps_h)|r`.
 
-These string columns are descriptive views over the computed quantities. They are not proof objects.
+These string columns are descriptive legacy views over the computed quantities.
+They are not proof objects, and the main clustering logic no longer depends on
+them.
 
 ## Compressed pair-fiber columns
 

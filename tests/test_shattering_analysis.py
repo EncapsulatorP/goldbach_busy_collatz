@@ -44,9 +44,14 @@ class ShatteringAnalysisTests(unittest.TestCase):
 
         self.assertIn("z_h_raw", df.columns)
         self.assertIn("h_cal", df.columns)
+        self.assertIn("h_alpha", df.columns)
+        self.assertIn("h_beta", df.columns)
+        self.assertIn("var_scale", df.columns)
         self.assertIn("z_bucket", df.columns)
         self.assertTrue(df["native_cluster"].str.startswith("z=").all())
-        self.assertAlmostEqual(float(df["z_h"].mean()), 0.0, places=10)
+        self.assertLess(abs(float(df["z_h"].mean())), 0.1)
+        self.assertGreater(float(df["var_scale"].iloc[0]), 0.0)
+        self.assertTrue(0.6 <= float(df["z_h"].std()) <= 1.4)
 
     def test_summary_groups_by_z_bucket(self):
         df = build_dataset(2_000, include_strings=True)
