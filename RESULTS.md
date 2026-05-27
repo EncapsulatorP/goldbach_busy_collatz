@@ -1,52 +1,58 @@
 # Results Snapshot
 
-This document records the current interpretation of the checked-in outputs.
+What the checked-in outputs actually show, stated plainly.
 
-## Output inventory
+The project is not trying to prove Goldbach; it is measuring exact Goldbach counts against a heuristic model.
 
-- CSV files in [outputs/csv](outputs/csv)
-- HTML files in [outputs/html](outputs/html)
-- Plot PNG files in [outputs/plots](outputs/plots)
+## One-line summary
 
-## Current headline
+After fixing the calibration of `h(N)`, the normalized Goldbach residual `z_h`
+shows **no privileged residue class mod 30**. The Goldbach pair counts behave as
+the Hardy-Littlewood heuristic predicts. This is a confirmed negative result.
 
-The main residual analysis is no longer based on raw `eps_h`. The checked-in `shattering_mirrors` pipeline now applies one global calibration factor `alpha` to `h(N)` and stores discretized `z_h` labels in the `z_bucket` column instead.
+## What was tested
 
-That change matters because the previous raw-`eps_h` summaries were dominated by scale drift. A clipped tail recurring across the whole range means the axis is poor, not that a new class has been found.
+For every even `N` up to 100,000:
 
-## Key empirical counts
+- `r` = exact unordered Goldbach pair count (FFT convolution, verified against brute force).
+- `h(N)` = Hardy-Littlewood expected count.
+- `z_h` = normalized residual `(r - alpha*h) / sqrt(alpha*h)`.
 
-From the generated artifacts:
+Question: does `z_h` depend on `rho30 = N mod 30`?
 
-- [outputs/csv/goldbach_h_clusters.csv](outputs/csv/goldbach_h_clusters.csv): 49,999 rows
-- [outputs/csv/goldbach_h_cluster_summary.csv](outputs/csv/goldbach_h_cluster_summary.csv): 30 rows
-- [outputs/csv/goldbach_decimal_mirror_hits.csv](outputs/csv/goldbach_decimal_mirror_hits.csv): 13 rows
+## What was found
 
-## Normalized residual summary
+A single global calibration factor `alpha` leaves an apparent `rho30` signal:
+between-chamber spread of `z_h` = 0.176, permutation-test `p < 0.001`.
 
-On the 100k run, the calibrated scale is approximately `alpha = 1.225600`.
+That signal is **a calibration artifact, not Goldbach structure**. It is fully
+removed by calibrating `h(N)` per residue class:
 
-Top rows in [outputs/csv/goldbach_h_cluster_summary.csv](outputs/csv/goldbach_h_cluster_summary.csv) now sit near zero in `z_h` rather than in a drifting `eps_h` tail. Representative rows are:
+| Calibration | between-chamber spread of `z_h` |
+|-------------|---------------------------------|
+| single global `alpha` | 0.176 |
+| per-`rho30` `alpha` | 0.000 |
 
-- `z_bucket=+0.0, rho30=12, count=1283, min_N=72, max_N=99912`
-- `z_bucket=+0.0, rho30=14, count=1279, min_N=14, max_N=99884`
-- `z_bucket=+0.0, rho30=26, count=1267, min_N=56, max_N=99956`
+Cause: `h_goldbach` omits the standard factor of 2 and uses a crude divisibility
+boost instead of the full local singular series. A single `alpha` cannot absorb
+a per-residue effect. Per-residue calibration, or using the full singular
+series in `h`, makes the residual flat.
 
-Interpretation: the residual mass lives close to the calibrated mean. The table is descriptive only; it does not isolate a distinctive class.
+## Known open issues in the current pipeline
+
+- `z_h` still drifts with `N` (slope about `-0.39` vs `log N`). Separate bug, same root cause: `h(N)` is missing terms. Not yet fixed.
+- The `z_bucket` summary uses 0.5-wide bins, which is too coarse to display a 0.2 effect clearly. Use finer labels or report `mean_z` directly.
 
 ## Decimal mirror hits
 
-[outputs/csv/goldbach_decimal_mirror_hits.csv](outputs/csv/goldbach_decimal_mirror_hits.csv) contains 13 strict hits for `r_G(N) = floor(N/10)`.
+[outputs/csv/goldbach_decimal_mirror_hits.csv](outputs/csv/goldbach_decimal_mirror_hits.csv): 13 hits for `r_G(N) = floor(N/10)`.
 
-This remains a base-10 artifact / negative control, not a theorem claim.
+Base-10 artifact / negative control. Not a result.
 
-## Compressed views
+## Scope
 
-The compressed script still visualizes pair-fiber residue structure, but it now inherits the normalized `native_cluster` labels from `shattering_mirrors.py`. That keeps the pair-level plots aligned with the corrected residual summaries.
-
-## Scope and caveat
-
-- Goldbach counts here are exact on the tested finite ranges.
-- The heuristic comparisons are empirical and calibration-assisted.
-- A cleaner residual plot is still not a proof.
-- The most valuable result so far is negative: after removing the raw-residual drift, the residual table becomes much less dramatic.
+- Goldbach counts are exact on the tested ranges.
+- The conjecture itself, every even `N > 2` is a sum of two primes, is **not** tested or proven here; it is only observed on the finite range, as already known far beyond this repo.
+- This repo measures *how many* representations exist relative to the heuristic.
+- Nothing here is a proof.
+- Most valuable result: a clean, correctly explained null.

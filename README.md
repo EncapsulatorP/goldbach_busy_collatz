@@ -24,6 +24,7 @@ That keeps the residual summaries comparable across the range and avoids reading
 ```text
 .
 ├── scripts/
+│   ├── busy_beaver_waring_goldbach.py
 │   ├── goldbach_native_filter.py
 │   ├── goldbach_volume.py
 │   ├── shattering_compressed.py
@@ -62,6 +63,9 @@ python scripts/shattering_compressed.py \
   --numbers-out outputs/csv/shattering_compressed_100k_numbers.csv \
   --summary-out outputs/csv/shattering_compressed_100k_cluster_summary.csv \
   --signatures-out outputs/csv/shattering_compressed_100k_pair_signatures.csv
+
+# Busy Beaver space-time tableau with a Waring-Goldbach-style encoding
+python scripts/busy_beaver_waring_goldbach.py --machine bb3 --plot
 ```
 
 Run the regression checks with:
