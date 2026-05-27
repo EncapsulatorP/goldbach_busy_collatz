@@ -30,6 +30,7 @@ not by itself remove all model misspecification.
 .
 ├── scripts/
 │   ├── busy_beaver_waring_goldbach.py
+│   ├── goldbach_automata.py
 │   ├── goldbach_native_filter.py
 │   ├── goldbach_volume.py
 │   ├── shattering_compressed.py
@@ -40,6 +41,7 @@ not by itself remove all model misspecification.
 │   ├── html/
 │   └── plots/
 ├── .github/workflows/ci.yml
+├── BOUNDARY_RELATION.md
 ├── DATA_DICTIONARY.md
 ├── README.md
 ├── RESULTS.md
@@ -71,6 +73,9 @@ python scripts/shattering_compressed.py \
 
 # Busy Beaver space-time tableau with a Waring-Goldbach-style encoding
 python scripts/busy_beaver_waring_goldbach.py --machine bb3 --plot
+
+# Goldbach z/rho automata search and dashboard
+python scripts/goldbach_automata.py --max-n 100000
 
 # Legacy 3D volume splash, rebuilt around the same raw heuristic
 python scripts/goldbach_volume.py --max-n 5000 --plot --html
@@ -121,5 +126,6 @@ See [DATA_DICTIONARY.md](DATA_DICTIONARY.md) for column definitions.
 
 ## References in repo
 
+- [BOUNDARY_RELATION.md](BOUNDARY_RELATION.md)
 - [RESULTS.md](RESULTS.md)
 - [next_steps.md](next_steps.md)
