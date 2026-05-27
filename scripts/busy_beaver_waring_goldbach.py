@@ -475,6 +475,263 @@ def plot_tableau(
     plt.close(fig)
 
 
+def plot_shell_tableau(
+    cell_df: pd.DataFrame,
+    row_df: pd.DataFrame,
+    machine: MachineSpec,
+    out_path: str,
+) -> None:
+    """
+    Four-panel shell-shaped space-time diagram.
+
+    The encoding maps every (time, x) cell to a prime p ≡ r (mod 30) where r
+    is one of four residue classes called "prime-boost shells":
+
+        residue  1  →  blank tape cell, no head  (background)
+        residue  7  →  symbol-1 cell, no head    (written mark)
+        residue 11  →  blank cell WITH head       (reading blank)
+        residue 13  →  symbol-1 cell WITH head    (reading one)
+
+    The "prime boost" of a cell is its exponent k:  the cell contributes
+    p^k to the row's Waring-Goldbach mass.  Larger k = deeper computational
+    involvement (head present, deeper state, higher transition rank).
+
+    Panel A — Classic spacetime tape with head path and exponent overlay
+    Panel B — Shell-shaped concentric-ring diagram
+               Each ring = one prime-boost shell (residue class).
+               Cells are arranged by angle (tape x position, wrapping)
+               and radially by time (inner = early, outer = late).
+               Colour = exponent k (prime boost magnitude).
+    Panel C — Prime-boost (exponent) evolution per shell
+               X = time step, Y = exponent k, one line per shell.
+               Shows how each shell's boost grows as the machine runs.
+    Panel D — Waring-Goldbach row-mass spiral (log-polar)
+               The row mass N_t = Σ_x p^k grows with time.
+               Plotted in polar: angle ∝ time, radius = log10(row mass).
+               This literally spirals outward like a nautilus shell as
+               the machine's computation accumulates mass.
+    """
+    import numpy as np
+    from matplotlib.colors import Normalize
+    from matplotlib.collections import LineCollection
+
+    ensure_parent_dir(out_path)
+
+    shells_in_data = sorted(cell_df["residue"].unique())
+    max_time = int(cell_df["time"].max())
+    max_exp  = int(cell_df["exponent"].max())
+    exp_norm = Normalize(vmin=int(cell_df["exponent"].min()), vmax=max_exp)
+
+    pivot = (
+        cell_df.pivot(index="time", columns="x", values="symbol")
+        .sort_index(axis=0).sort_index(axis=1)
+    )
+    xs_all = sorted(pivot.columns)
+    x_min, x_max = xs_all[0], xs_all[-1]
+    x_span = max(1, x_max - x_min)
+
+    fig, axes = plt.subplots(2, 2, figsize=(18, 14), constrained_layout=True)
+    fig.patch.set_facecolor("#0d0d14")
+    for ax in axes.ravel():
+        ax.set_facecolor("#0d0d14")
+        for spine in ax.spines.values():
+            spine.set_edgecolor("#333340")
+        ax.tick_params(colors="#b0b0c0")
+        ax.title.set_color("#e8e8f0")
+        ax.xaxis.label.set_color("#b0b0c0")
+        ax.yaxis.label.set_color("#b0b0c0")
+
+    ax_tape, ax_rings, ax_boost, ax_spiral = axes.ravel()
+
+    # ── Panel A: classic tape + head path + exponent overlay ────────────────
+    tape_cmap = plt.get_cmap("Greys_r")
+    im_tape = ax_tape.imshow(
+        pivot.values, aspect="auto", interpolation="nearest",
+        cmap=tape_cmap, vmin=0, vmax=1,
+    )
+    head_rows = (
+        cell_df[cell_df["is_head"] == 1][["time", "x", "state", "exponent"]]
+        .sort_values("time")
+    )
+    x_to_col = {x: i for i, x in enumerate(xs_all)}
+    head_xs  = [x_to_col[int(r.x)] for r in head_rows.itertuples()]
+    head_ts  = [int(r.time) for r in head_rows.itertuples()]
+    head_ks  = [int(r.exponent) for r in head_rows.itertuples()]
+
+    ax_tape.plot(head_xs, head_ts, color="#ffd700", lw=2, alpha=0.9, zorder=3)
+    sc = ax_tape.scatter(head_xs, head_ts, c=head_ks, cmap="plasma",
+                         norm=exp_norm, s=60, zorder=4, edgecolors="#000000", lw=0.4)
+    for i, row in enumerate(head_rows.itertuples(index=False)):
+        ax_tape.text(
+            x_to_col[int(row.x)] + 0.1, int(row.time) + 0.15,
+            row.state, color="#ffffff", fontsize=7, zorder=5,
+        )
+    cb_a = fig.colorbar(sc, ax=ax_tape, fraction=0.04, pad=0.03)
+    cb_a.set_label("exponent k  (prime boost)", color="#b0b0c0")
+    plt.setp(cb_a.ax.yaxis.get_ticklabels(), color="#b0b0c0")
+    cb_a.ax.yaxis.set_tick_params(color="#b0b0c0")
+
+    ax_tape.set_title(
+        f"A — {machine.name.upper()} Spacetime Tableau\n"
+        "White = symbol 1,  black = blank.  "
+        "Gold path = head trajectory,  dot colour = exponent k (prime boost).",
+        pad=6,
+    )
+    ax_tape.set_xlabel("Tape position x")
+    ax_tape.set_ylabel("Time step t")
+    ax_tape.set_xticks(range(len(xs_all)))
+    ax_tape.set_xticklabels([str(x) for x in xs_all], rotation=0)
+
+    # ── Panel B: shell-shaped concentric-ring diagram ────────────────────────
+    ring_w = 1.6
+    ring_g = 0.5
+    cmap_exp = plt.get_cmap("plasma")
+    rng = __import__("numpy").random.default_rng(3)
+
+    ax_rings.set_aspect("equal")
+
+    for shell_idx, residue in enumerate(sorted(SHELL_META)):
+        label, base_color = SHELL_META[residue]
+        sub = cell_df[cell_df["residue"] == residue].sort_values(["time", "x"])
+        if sub.empty:
+            continue
+
+        r_in  = shell_idx * (ring_w + ring_g)
+        r_out = r_in + ring_w
+
+        # angle: tape position x maps to [0, 2π], wrapping naturally
+        angles = (
+            ((sub["x"].values - x_min) / x_span * 2 * math.pi)
+            + sub["time"].values / max(1, max_time) * math.pi * 0.3  # slight time twist
+        ) % (2 * math.pi)
+        r_vals = rng.uniform(r_in + 0.06, r_out - 0.06, len(sub))
+
+        xs_r = r_vals * __import__("numpy").cos(angles)
+        ys_r = r_vals * __import__("numpy").sin(angles)
+
+        colors_r = cmap_exp(exp_norm(sub["exponent"].values))
+        ax_rings.scatter(xs_r, ys_r, c=colors_r, s=18, alpha=0.82,
+                         linewidths=0, zorder=2)
+
+        # Ring boundary arc
+        theta_arc = __import__("numpy").linspace(0, 2 * math.pi, 360)
+        ax_rings.plot(
+            r_out * __import__("numpy").cos(theta_arc),
+            r_out * __import__("numpy").sin(theta_arc),
+            color=base_color, lw=1.2, alpha=0.5, zorder=3,
+        )
+        # Shell label at 3 o'clock
+        ax_rings.text(
+            r_out + 0.15, 0,
+            f"r≡{residue} mod 30\n{label}",
+            va="center", ha="left", color=base_color,
+            fontsize=7, alpha=0.9,
+        )
+
+    sm_b = plt.cm.ScalarMappable(cmap=cmap_exp, norm=exp_norm)
+    sm_b.set_array([])
+    cb_b = fig.colorbar(sm_b, ax=ax_rings, fraction=0.04, pad=0.04)
+    cb_b.set_label("exponent k  (prime boost)", color="#b0b0c0")
+    plt.setp(cb_b.ax.yaxis.get_ticklabels(), color="#b0b0c0")
+    cb_b.ax.yaxis.set_tick_params(color="#b0b0c0")
+
+    ax_rings.set_title(
+        "B — Prime-Boost Shell Cross-Section\n"
+        "Concentric rings = residue shells (mod 30 class of assigned prime).\n"
+        "Angle = tape-x position,  inner→outer = earlier→later time,  "
+        "colour = exponent k.",
+        pad=6,
+    )
+    ax_rings.axis("off")
+
+    # ── Panel C: exponent (prime boost) evolution per shell ──────────────────
+    time_steps = sorted(cell_df["time"].unique())
+    for residue in sorted(SHELL_META):
+        label, color = SHELL_META[residue]
+        sub = cell_df[cell_df["residue"] == residue]
+        mean_k = sub.groupby("time")["exponent"].mean().reindex(time_steps)
+        max_k  = sub.groupby("time")["exponent"].max().reindex(time_steps)
+        ax_boost.plot(time_steps, mean_k.values, color=color, lw=2,
+                      label=f"r≡{residue}  {label}")
+        ax_boost.fill_between(time_steps, mean_k.values, max_k.values,
+                              color=color, alpha=0.15)
+
+    ax_boost.set_title(
+        "C — Prime-Boost (Exponent k) Evolution per Shell\n"
+        "Solid line = mean exponent,  shaded band = mean → max.\n"
+        "Spikes mark when the head enters a shell (exponent jumps).",
+        pad=6,
+    )
+    ax_boost.set_xlabel(
+        "Time step t\n"
+        "Exponent k = 2 + scale_level + symbol + is_head + state_rank + transition_rank"
+    )
+    ax_boost.set_ylabel("Exponent k  (prime boost magnitude)")
+    ax_boost.legend(fontsize=8, facecolor="#1a1a22", edgecolor="#444455",
+                    labelcolor="#e0e0e8")
+    ax_boost.grid(True, alpha=0.15, color="#444455")
+
+    # ── Panel D: Waring-Goldbach row-mass log-polar spiral ───────────────────
+    times   = row_df["time"].values
+    log_masses = row_df["row_mass_log10"].values
+    ones    = row_df["ones_count"].values
+
+    # Map time → angle so the spiral winds through 1.5 full turns
+    max_turns = 1.5
+    angles_d = times / max(1, times[-1]) * max_turns * 2 * math.pi
+
+    x_spiral = log_masses * __import__("numpy").cos(angles_d)
+    y_spiral = log_masses * __import__("numpy").sin(angles_d)
+
+    # Draw connecting spiral line in segments coloured by ones_count
+    pts = __import__("numpy").array([x_spiral, y_spiral]).T.reshape(-1, 1, 2)
+    segs = __import__("numpy").concatenate([pts[:-1], pts[1:]], axis=1)
+    ones_norm = Normalize(vmin=int(ones.min()), vmax=int(ones.max()))
+    lc = LineCollection(segs, cmap="cool", norm=ones_norm, lw=2.5, alpha=0.9)
+    lc.set_array(ones[:-1])
+    ax_spiral.add_collection(lc)
+    ax_spiral.scatter(x_spiral, y_spiral, c=ones, cmap="cool", norm=ones_norm,
+                      s=30, zorder=3, edgecolors="none")
+
+    # Annotate first and last point
+    ax_spiral.text(x_spiral[0], y_spiral[0], f" t=0", color="#88ffdd",
+                   fontsize=8, va="bottom")
+    ax_spiral.text(x_spiral[-1], y_spiral[-1], f" t={int(times[-1])} (halt)",
+                   color="#ff88aa", fontsize=8, va="bottom")
+    ax_spiral.axhline(0, color="#333344", lw=0.5)
+    ax_spiral.axvline(0, color="#333344", lw=0.5)
+
+    cb_d = fig.colorbar(lc, ax=ax_spiral, fraction=0.04, pad=0.04)
+    cb_d.set_label("ones count on tape", color="#b0b0c0")
+    plt.setp(cb_d.ax.yaxis.get_ticklabels(), color="#b0b0c0")
+    cb_d.ax.yaxis.set_tick_params(color="#b0b0c0")
+
+    ax_spiral.set_title(
+        "D — Waring-Goldbach Row-Mass Spiral (log-polar)\n"
+        "Angle ∝ time,  radius = log₁₀(N_t)  where  N_t = Σ_x p^k.\n"
+        "The mass grows as computation accumulates → nautilus-shell spiral.",
+        pad=6,
+    )
+    ax_spiral.set_xlabel("log₁₀(row mass) · cos(angle)")
+    ax_spiral.set_ylabel("log₁₀(row mass) · sin(angle)")
+    ax_spiral.set_aspect("equal")
+    ax_spiral.margins(0.15)
+    ax_spiral.grid(True, alpha=0.1, color="#444455")
+
+    fig.suptitle(
+        f"Busy-Beaver {machine.name.upper()} × Waring-Goldbach "
+        "Space–Time Diagrams  |  Prime-Boost Shells\n"
+        "Each (t, x) cell → prime p ≡ r (mod 30),  boost = p^k  where k encodes "
+        "computational depth.  N_t = Σ_x p^k  (Waring-Goldbach row mass).",
+        fontsize=12, color="#e8e8f0", y=1.01,
+    )
+
+    fig.savefig(out_path, dpi=180, bbox_inches="tight",
+                facecolor=fig.get_facecolor())
+    plt.close(fig)
+    print(f"Saved shell diagram: {out_path}")
+
+
 def build_output_paths(machine_name: str, args: argparse.Namespace) -> dict[str, str]:
     stem = f"busy_beaver_waring_goldbach_{machine_name}"
     return {
