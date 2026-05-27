@@ -2,7 +2,11 @@
 """
 Goldbach h-residual mirror clustering.
 
-This script builds the hierarchy:
+This script keeps the legacy mirror strings as descriptive diagnostics, but the
+main analysis axis is now a calibrated normalized residual rather than the old
+`eps_h = r - floor(h)` construction.
+
+Legacy string hierarchy:
 
     fake mirror:
         r | delta10 | r
@@ -16,15 +20,19 @@ This script builds the hierarchy:
     root native:
         eps_h | rho30 | eps_h
 
-where:
+Core numeric quantities:
 
     r       = exact unordered Goldbach count r_G(N)
     h       = Hardy-Littlewood expected Goldbach count
+    h_cal   = fitted heuristic h * (alpha + beta / log N)
+    z_h     = (r - h_cal) / sqrt(c * h_cal)
     eps_h   = r_G(N) - floor(h(N))
     delta10 = N - 10*r_G(N)
     rho30   = N mod 30
 
-Use this as a diagnostic / clustering tool, not as a proof engine.
+Use this as a diagnostic / clustering tool, not as a proof engine. The mirror
+strings remain in the CSV for backwards compatibility, but the clustering logic
+is intentionally anchored on `z_h`.
 """
 
 import argparse
@@ -115,20 +123,23 @@ def exact_goldbach_counts_fft(max_n: int, is_prime: np.ndarray) -> np.ndarray:
     return r
 
 
-def local_goldbach_boost(n: int, spf: np.ndarray) -> float:
+def local_goldbach_boost(N: int, spf: np.ndarray) -> float:
     """
     Compute:
 
-        G(n) = product_{p | n, p > 2} (p - 1)/(p - 2)
+        G(N) = product_{p | N, p > 2} (p - 1)/(p - 2)
 
-    using unique odd prime divisors of n.
+    using unique odd prime divisors of the even target N.
+
+    For even N, the odd-prime support of N and N/2 is the same, so this is a
+    notational cleanup rather than a different arithmetic object.
     """
-    if n <= 1:
+    if N <= 1:
         return 1.0
 
     boost = 1.0
     last_p = None
-    x = n
+    x = N
 
     while x > 1:
         p = int(spf[x])
@@ -146,14 +157,45 @@ def local_goldbach_boost(n: int, spf: np.ndarray) -> float:
     return boost
 
 
-def h_goldbach(N: int, boost: float) -> float:
+def reciprocal_log_density_convolution(max_n: int) -> np.ndarray:
     """
-    Hardy-Littlewood-style expected unordered Goldbach count:
+    Discrete Cramer-style density convolution:
 
-        h(N) ≈ N / log(N)^2 * C2 * G(N/2)
+        H_base(N) = sum_{k=2}^{N-2} 1/log(k) * 1/log(N-k)
+
+    This is an FFT-accelerated surrogate for the integral
+
+        integral dt / (log t * log(N - t))
+
+    and behaves better over finite ranges than evaluating N/log(N)^2 at a
+    single point.
+    """
+    density = np.zeros(max_n + 1, dtype=np.float64)
+    grid = np.arange(2, max_n + 1, dtype=np.float64)
+    density[2:] = 1.0 / np.log(grid)
+
+    size = 1 << ((2 * max_n + 1) - 1).bit_length()
+    fft_density = np.fft.rfft(density, size)
+    conv = np.fft.irfft(fft_density * fft_density, size)
+    return conv[: max_n + 1]
+
+
+def h_goldbach(N: int, boost: float, density_conv: np.ndarray | None = None) -> float:
+    """
+    Hardy-Littlewood-style expected unordered Goldbach count.
+
+    If `density_conv` is supplied, use the discrete density convolution
+
+        C2 * G(N) * sum_k 1/log(k)1/log(N-k)
+
+    which is the finite-range version used by the main scripts. The pointwise
+    `N / log(N)^2` form is retained as a fallback.
     """
     if N < 4:
         return 0.0
+
+    if density_conv is not None:
+        return GOLDBACH_C2 * boost * float(density_conv[N])
 
     return (N / (math.log(N) ** 2)) * GOLDBACH_C2 * boost
 
@@ -196,7 +238,9 @@ class CompressionRow:
     h_floor: int
     eps_h: int
     z_h_raw: float
-    h_scale: float
+    h_alpha: float
+    h_beta: float
+    var_scale: float
     h_cal: float
     z_h: float
     boost_G: float
@@ -212,10 +256,15 @@ class CompressionRow:
     native_cluster: str
 
 
-def build_row(N: int, r: int, spf: np.ndarray) -> CompressionRow:
+def build_row(
+    N: int,
+    r: int,
+    spf: np.ndarray,
+    density_conv: np.ndarray | None = None,
+) -> CompressionRow:
     n = N // 2
-    boost = local_goldbach_boost(n, spf)
-    h = h_goldbach(N, boost)
+    boost = local_goldbach_boost(N, spf)
+    h = h_goldbach(N, boost, density_conv=density_conv)
 
     h_floor = math.floor(h)
     eps_h = int(r - h_floor)
@@ -242,7 +291,9 @@ def build_row(N: int, r: int, spf: np.ndarray) -> CompressionRow:
         h_floor=int(h_floor),
         eps_h=int(eps_h),
         z_h_raw=float(z_h_raw),
-        h_scale=1.0,
+        h_alpha=1.0,
+        h_beta=0.0,
+        var_scale=1.0,
         h_cal=float(h),
         z_h=float(z_h_raw),
         boost_G=float(boost),
@@ -259,35 +310,64 @@ def build_row(N: int, r: int, spf: np.ndarray) -> CompressionRow:
     )
 
 
-def calibrated_h_scale(df: pd.DataFrame) -> float:
+def calibrated_h_model(df: pd.DataFrame) -> tuple[float, float]:
     """
-    Fit one global multiplicative scale for h(N) so mean normalized residual is 0.
+    Fit:
 
-    This does not upgrade the heuristic into a theorem; it only removes the
-    single global bias before assigning residual labels.
+        h_cal(N) = h(N) * (alpha + beta / log N)
+
+    by least squares against the exact counts.
     """
     positive = df["h"] > 0
-    sqrt_h = np.sqrt(df.loc[positive, "h"].to_numpy())
+    h = df.loc[positive, "h"].to_numpy(dtype=np.float64)
+    log_n = np.log(df.loc[positive, "N"].to_numpy(dtype=np.float64))
     r = df.loc[positive, "r"].to_numpy()
 
-    if len(sqrt_h) == 0:
+    if len(h) == 0:
+        return 1.0, 0.0
+
+    X = np.column_stack([h, h / log_n])
+    coeffs, _, _, _ = np.linalg.lstsq(X, r, rcond=None)
+    alpha = float(coeffs[0])
+    beta = float(coeffs[1])
+    return alpha, beta
+
+
+def empirical_variance_scale(r: np.ndarray, h_cal: np.ndarray) -> float:
+    """
+    Fit Var(r_G(N) | N) ~= c * h_cal(N) by matching average squared residual.
+    """
+    positive = h_cal > 0
+    if not np.any(positive):
         return 1.0
 
-    return float((r / sqrt_h).sum() / sqrt_h.sum())
+    resid = r[positive] - h_cal[positive]
+    scale = float(np.square(resid).sum() / h_cal[positive].sum())
+    return max(scale, 1e-12)
 
 
 def apply_residual_calibration(df: pd.DataFrame) -> pd.DataFrame:
     """Attach calibrated h and discretized residual labels to the dataset."""
     out = df.copy()
-    scale = calibrated_h_scale(out)
-    out["h_scale"] = scale
-    out["h_cal"] = out["h"] * scale
+    alpha, beta = calibrated_h_model(out)
+    log_n = np.log(out["N"].to_numpy(dtype=np.float64))
+    h_cal = out["h"].to_numpy(dtype=np.float64) * (alpha + beta / log_n)
+    h_cal = np.maximum(h_cal, 1e-12)
+
+    out["h_alpha"] = alpha
+    out["h_beta"] = beta
+    out["h_cal"] = h_cal
 
     z = np.zeros(len(out), dtype=np.float64)
-    positive = out["h_cal"] > 0
+    positive = h_cal > 0
+    var_scale = empirical_variance_scale(
+        out["r"].to_numpy(dtype=np.float64),
+        h_cal,
+    )
+    out["var_scale"] = var_scale
     z[positive] = (
-        out.loc[positive, "r"].to_numpy() - out.loc[positive, "h_cal"].to_numpy()
-    ) / np.sqrt(out.loc[positive, "h_cal"].to_numpy())
+        out.loc[positive, "r"].to_numpy(dtype=np.float64) - h_cal[positive]
+    ) / np.sqrt(var_scale * h_cal[positive])
     out["z_h"] = z
     out["z_bucket"] = [z_label(value) for value in out["z_h"]]
 
@@ -317,17 +397,20 @@ def build_dataset(max_n: int, include_strings: bool = True) -> pd.DataFrame:
     print(f"[1/5] Sieve primes up to {max_n}...")
     is_prime = sieve_bool(max_n)
 
-    print(f"[2/5] Build SPF up to {max_n // 2}...")
-    spf = spf_sieve(max_n // 2)
+    print(f"[2/6] Build SPF up to {max_n}...")
+    spf = spf_sieve(max_n)
 
-    print("[3/5] Compute exact Goldbach counts by FFT...")
+    print("[3/6] Build reciprocal-log density convolution...")
+    density_conv = reciprocal_log_density_convolution(max_n)
+
+    print("[4/6] Compute exact Goldbach counts by FFT...")
     r_counts = exact_goldbach_counts_fft(max_n, is_prime)
 
-    print("[4/5] Build h-residual compression rows...")
+    print("[5/6] Build h-residual compression rows...")
     rows = []
 
     for N in range(4, max_n + 1, 2):
-        row = build_row(N, int(r_counts[N]), spf)
+        row = build_row(N, int(r_counts[N]), spf, density_conv=density_conv)
 
         if include_strings:
             rows.append(row.__dict__)
@@ -351,7 +434,7 @@ def build_dataset(max_n: int, include_strings: bool = True) -> pd.DataFrame:
     df = pd.DataFrame(rows)
     df = apply_residual_calibration(df)
 
-    print("[5/5] Done.")
+    print("[6/6] Done.")
     return df
 
 
@@ -554,7 +637,7 @@ def plot_cluster_dashboard(
         ax_z.scatter(subset["N"], subset["z_h"], s=10, color=palette[label], alpha=0.8, edgecolors="none", label=label)
     ax_z.axhline(0.0, color="#444444", lw=1.0)
     ax_z.set_xlabel("N")
-    ax_z.set_ylabel("z_h = (r - alpha*h)/sqrt(alpha*h)")
+    ax_z.set_ylabel("z_h = (r - h_cal)/sqrt(c * h_cal)")
 
     ax_delta.set_title("N vs delta10 with cluster filter highlight")
     ax_delta.scatter(df["N"], df["delta10"], s=7, color="#b0b0b0", alpha=0.18, edgecolors="none")
@@ -773,7 +856,12 @@ def main() -> None:
     summary.to_csv(args.summary_out, index=False)
     mirror_hits.to_csv(args.mirror_out, index=False)
 
-    print(f"\nCalibrated h-scale alpha={df['h_scale'].iloc[0]:.6f}")
+    print(
+        "\nCalibrated heuristic parameters:"
+        f" alpha={df['h_alpha'].iloc[0]:.6f},"
+        f" beta={df['h_beta'].iloc[0]:.6f},"
+        f" c={df['var_scale'].iloc[0]:.6f}"
+    )
     print("\nTop normalized residual labels:")
     print(summary.to_string(index=False))
 
