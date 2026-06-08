@@ -16,3 +16,5 @@
 1. **Week 1:** Formalize the Waring-Goldbach encoding as a **state-machine compressor** for BB tableaux. Prove (small cases) that the number of Goldbach partitions appearing in the compressed tableau grows exactly like the known r(N) asymptotic.
 2. **Week 2:** Run the BB encoder on the new Goldbach counts up to 10^6. Extract a new statistic: “BB-compressed Goldbach entropy” and show it satisfies a clean logarithmic law (new empirical discovery).
 3. **Week 3:** Add a short theorem: “For all BB machines of size ≤ 4, the compressed Goldbach count equals the classical count modulo 30.” Package this as a standalone “Goldbach-BB correspondence” note — publishable as a short experimental math piece.
+
+
