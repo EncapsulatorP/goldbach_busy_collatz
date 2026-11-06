@@ -86,17 +86,9 @@ def sieve(limit: int) -> np.ndarray:
 
 
 def exact_counts(max_n: int, is_p: np.ndarray) -> np.ndarray:
-    """Unordered Goldbach counts r_G(N) for even N <= max_n, via FFT."""
-    arr = is_p.astype(np.float64)
-    size = 1 << ((2 * max_n + 1) - 1).bit_length()
-    f = np.fft.rfft(arr, size)
-    conv = np.fft.irfft(f * f, size)
-    ordered = np.rint(conv[: max_n + 1]).astype(np.int64)
-    r = np.zeros(max_n + 1, dtype=np.int64)
-    for n in range(4, max_n + 1, 2):
-        self_pair = 1 if is_p[n // 2] else 0
-        r[n] = (ordered[n] + self_pair) // 2
-    return r
+    """Unordered even-target counts through the shared exact NTT backend."""
+    from exact_arithmetic import exact_goldbach_counts
+    return exact_goldbach_counts(max_n, is_p)
 
 
 # ---------------------------------------------------------------------------

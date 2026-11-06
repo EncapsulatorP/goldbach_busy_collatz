@@ -7,11 +7,18 @@ toy encoding experiment rather than part of the main inference path.
 ## Mathematical status
 
 - The Goldbach conjecture is still open.
-- Nothing here is a proof.
+- No proof of the Goldbach conjecture is claimed. Elementary supporting identities are stated separately.
 - The scripts compute exact Goldbach counts on finite ranges and compare them to heuristic expectations.
 - The checked-in Collatz references are framing only. The current code and outputs are overwhelmingly Goldbach-centric.
 
 ## Model Status
+
+The finite count backend uses an integer number-theoretic transform (NTT),
+with a stated coefficient bound and independent small-range tests. The
+[research bridge](RESEARCH_BRIDGE.md) produces one bounded JSON evidence report
+connecting Goldbach counts, modular constraints, Möbius/Mertens sums, the
+Catalan character split, and an optional explicit tower checkout. It records
+source hashes and keeps computational checks separate from formal proof.
 
 The main pipeline treats the heuristic as a model to be repaired, not as a
 finished reference curve.
