@@ -93,34 +93,9 @@ def spf_sieve(limit: int) -> np.ndarray:
 
 
 def exact_goldbach_counts_fft(max_n: int, is_prime: np.ndarray) -> np.ndarray:
-    """
-    Compute unordered Goldbach counts r_G(N) for all N <= max_n.
-
-    Uses FFT convolution of the prime indicator with itself.
-
-    Ordered count:
-        ordered[N] = # ordered prime pairs (p, q) with p + q = N
-
-    Unordered count:
-        r_G(N) = (ordered[N] + self_pair[N]) // 2
-
-    where self_pair[N] = 1 if N/2 is prime, else 0.
-    """
-    arr = is_prime.astype(np.float64)
-
-    size = 1 << ((2 * max_n + 1) - 1).bit_length()
-
-    fft_arr = np.fft.rfft(arr, size)
-    conv = np.fft.irfft(fft_arr * fft_arr, size)
-    ordered = np.rint(conv[: max_n + 1]).astype(np.int64)
-
-    r = np.zeros(max_n + 1, dtype=np.int64)
-
-    for n in range(4, max_n + 1, 2):
-        self_pair = 1 if is_prime[n // 2] else 0
-        r[n] = (ordered[n] + self_pair) // 2
-
-    return r
+    """Compatibility name: exact integer NTT backend; no floating FFT."""
+    from exact_arithmetic import exact_goldbach_counts
+    return exact_goldbach_counts(max_n, is_prime)
 
 
 def local_goldbach_boost(N: int, spf: np.ndarray) -> float:
@@ -406,7 +381,7 @@ def build_dataset(max_n: int, include_strings: bool = True) -> pd.DataFrame:
     print("[3/6] Build reciprocal-log density convolution...")
     density_conv = reciprocal_log_density_convolution(max_n)
 
-    print("[4/6] Compute exact Goldbach counts by FFT...")
+    print("[4/6] Compute exact Goldbach counts by integer NTT...")
     r_counts = exact_goldbach_counts_fft(max_n, is_prime)
 
     print("[5/6] Build h-residual compression rows...")

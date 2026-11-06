@@ -5,7 +5,7 @@ Goldbach volume splash generator.
 The original file in this workspace was truncated to a one-liner. This rebuild
 reconstructs the checked-in artifact shape from the surrounding repo outputs:
 
-- exact Goldbach counts `r_G(N)` via FFT
+- exact Goldbach counts `r_G(N)` via integer NTT
 - raw Hardy-Littlewood-style heuristic `h(N)`
 - raw normalized residual `z_h = (r - h) / sqrt(h)`
 - residue/family labels tied to the odd prime support of `N / 2`
@@ -165,7 +165,7 @@ def build_volume_dataset(max_n: int, modulus: int) -> tuple[pd.DataFrame, np.nda
     print("[3/6] Build reciprocal-log density convolution...")
     density_conv = reciprocal_log_density_convolution(max_n)
 
-    print(f"[4/6] Compute exact Goldbach counts by FFT...")
+    print(f"[4/6] Compute exact Goldbach counts by integer NTT...")
     r_counts = exact_goldbach_counts_fft(max_n, is_prime)
 
     print(f"[5/6] Build raw volume rows modulo {modulus}...")
